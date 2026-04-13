@@ -332,6 +332,14 @@ function renderMarkers(){
     });
     hit.on("click",()=>{selectedApn=p.apn;renderMarkers();showPopup([p.lat,p.lng],p);highlightRow(p.apn);});
     dotsGroup.addLayer(hit);
+    // Outer ring for selected dot
+    if(sel){
+      const ring=L.circleMarker([p.lat,p.lng],{
+        radius:13, fillColor:"transparent",
+        color:c, weight:2.5, opacity:0.9, fillOpacity:0, interactive:false
+      });
+      dotsGroup.addLayer(ring);
+    }
     // Visible dot on top
     const m=L.circleMarker([p.lat,p.lng],{
       radius:sel?8:6, fillColor:c,
@@ -360,6 +368,22 @@ function highlightRow(apn){
   document.querySelectorAll(".row").forEach(r=>r.classList.toggle("hl",r.dataset.apn===apn));
   const el=document.querySelector(".row[data-apn=\""+apn+"\"]");
   if(el) el.scrollIntoView({behavior:"smooth",block:"nearest"});
+  // Highlight parcel boundary on map
+  if(parcelLayer){
+    parcelLayer.eachLayer(layer=>{
+      const id=String(layer.feature&&layer.feature.properties&&layer.feature.properties.id||"");
+      const r=apnMap[id];
+      if(!r) return;
+      if(r.apn===apn){
+        const c=scolor(r.status);
+        layer.setStyle({color:"#111",weight:3,fillOpacity:0.45,opacity:1});
+        layer.bringToFront();
+      } else {
+        const c=scolor(r.status);
+        layer.setStyle({color:c,weight:1.5,fillOpacity:0.28,opacity:0.85});
+      }
+    });
+  }
 }
 
 function sortBy(key,el){
@@ -391,7 +415,7 @@ function renderTable(){
       "<div class=\"td td-stat\"><span class=\""+schip(r.status)+"\">"+r.status+"</span></div>";
     div.addEventListener("click",()=>{
       selectedApn=r.apn; renderMarkers(); highlightRow(r.apn);
-      if(r.lat&&r.lng) map.setView([r.lat,r.lng],17,{animate:true});
+      if(r.lat&&r.lng) map.setView([r.lat,r.lng],16,{animate:true});
     });
     frag.appendChild(div);
   });
