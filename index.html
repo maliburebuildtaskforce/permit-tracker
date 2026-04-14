@@ -255,6 +255,18 @@ html, body {
     </div>
   </div>
 
+    <div style="position:absolute;bottom:90px;right:12px;z-index:800;
+      background:rgba(255,255,255,0.95);border-radius:10px;padding:10px 14px;
+      font-size:11px;box-shadow:0 1px 4px rgba(0,0,0,.15);pointer-events:auto">
+    <div style="font-weight:700;font-size:9px;letter-spacing:1px;color:#999;margin-bottom:6px">AVAILABLE REPORTS</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <div style="width:10px;height:10px;border-radius:50%;background:#8B4513"></div>geo report
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="width:10px;height:10px;border-radius:50%;background:#1a73e8"></div>coastal report
+    </div>
+  </div>
+
   <div id="div"></div>
 
   <div id="tbl-section">
@@ -622,27 +634,44 @@ async function loadData(){
     let reportLayer = null;
     function buildReportDots(){
       if(!window._geojson) return;
-      if(reportLayer) map.removeLayer(reportLayer);
-      const markers = [];
+      if(reportLayer){ map.removeLayer(reportLayer); }
+      if(window._coastalLayer){ map.removeLayer(window._coastalLayer); }
+      const geoMarkers=[];
+      const coastalMarkers=[];
       for(const apn in reportsByAPN){
-        const r = reportsByAPN[apn];
+        const r=reportsByAPN[apn];
         if(!r.geo_url && !r.coastal_url) continue;
-        const dashed = apn.length>=10 ? apn.slice(0,4)+'-'+apn.slice(4,7)+'-'+apn.slice(7) : apn;
-        const p = apnMap[dashed];
-        if(!p || !p.lat || !p.lng) continue;
-        const m = L.circleMarker([p.lat, p.lng], {
-          radius: 4, color: '#1a73e8', fillColor: '#1a73e8',
-          fillOpacity: 0.6, weight: 1, opacity: 0.8
-        });
-        let tip = '<b style="font-size:11px">'+(p.address||dashed)+'</b><br>';
-        tip += '<span style="color:#888;font-size:10px">'+dashed+'</span><br>';
-        if(r.geo_url) tip += '<a href="'+r.geo_url+'" target="_blank" style="color:#1a73e8;font-size:11px">Geo Report</a><br>';
-        if(r.coastal_url) tip += '<a href="'+r.coastal_url+'" target="_blank" style="color:#1a73e8;font-size:11px">Coastal Engineering</a><br>';
-        m.bindPopup(tip, {maxWidth:250});
-        markers.push(m);
+        const dashed=apn.length===10
+          ? apn.slice(0,4)+"-"+apn.slice(4,7)+"-"+apn.slice(7)
+          : apn;
+        const p=apnMap[dashed];
+        if(!p||!p.lat||!p.lng) continue;
+        if(r.geo_url){
+          const m=L.circleMarker([p.lat,p.lng],{
+            radius:4, color:"#8B4513", fillColor:"#8B4513",
+            fillOpacity:0.7, weight:1, opacity:0.9
+          });
+          let tip="<b style=\"font-size:11px\">"+(p.address||dashed)+"</b>";
+          tip+="<br><span style=\"color:#888;font-size:10px\">"+dashed+"</span>";
+          tip+="<br><a href=\""+r.geo_url+"\" target=\"_blank\">Geo Report</a>";
+          m.bindPopup(tip,{maxWidth:250});
+          geoMarkers.push(m);
+        }
+        if(r.coastal_url){
+          const m=L.circleMarker([p.lat,p.lng],{
+            radius:4, color:"#1a73e8", fillColor:"#1a73e8",
+            fillOpacity:0.7, weight:1, opacity:0.9
+          });
+          let tip="<b style=\"font-size:11px\">"+(p.address||dashed)+"</b>";
+          tip+="<br><span style=\"color:#888;font-size:10px\">"+dashed+"</span>";
+          tip+="<br><a href=\""+r.coastal_url+"\" target=\"_blank\">Coastal Engineering Report</a>";
+          m.bindPopup(tip,{maxWidth:250});
+          coastalMarkers.push(m);
+        }
       }
-      reportLayer = L.layerGroup(markers).addTo(map);
-      console.log('Blue dots:', markers.length);
+      reportLayer=L.layerGroup(geoMarkers).addTo(map);
+      window._coastalLayer=L.layerGroup(coastalMarkers).addTo(map);
+      console.log("Report dots: "+geoMarkers.length+" geo (brown), "+coastalMarkers.length+" coastal (blue)");
     }
 
     async function init(){
@@ -653,6 +682,7 @@ async function loadData(){
   ]);
   if(window._geojson) buildParcels(window._geojson);
   document.getElementById("loading").style.display="none";
+    await fetchPermits();
 }
 
 
