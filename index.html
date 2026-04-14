@@ -202,7 +202,7 @@ html, body {
 }
 
     /* ── permit/geo/coastal columns + blue dots ── */
-    #tbl-head, .row { grid-template-columns: 100px 1fr 80px 80px 48px 36px 52px !important; }
+    #tbl-head, .row { grid-template-columns: 100px 1fr 80px 80px 65px 55px 60px !important; }
     .td-permit a, .td-geo a, .td-coastal a { color:#1a73e8; text-decoration:none; font-size:11px; }
     .td-permit a:hover, .td-geo a:hover, .td-coastal a:hover { text-decoration:underline; }
     .pop-link { display:block; margin-top:3px; }
@@ -227,7 +227,7 @@ html, body {
   </div>
   <div id="hdr-r">
     <span id="updated"></span>
-    <button id="refresh-btn" onclick="(async()=>{await fetchPermits();await loadData();buildReportDots()})()">↺ refresh</button>
+    <button id="refresh-btn" onclick="(async()=>{await loadData();await fetchPermits()})()">↺ refresh</button>
   </div>
 </div>
 
@@ -271,9 +271,9 @@ html, body {
       <div class="th act" onclick="sortBy('address',this)">address <span id="s-address">↑</span></div>
       <div class="th" onclick="sortBy('ambassador',this)">zone captain <span id="s-ambassador"></span></div>
       <div class="th" onclick="sortBy('status',this)">status <span id="s-status"></span></div>
-      <div class="th" style="font-size:10px">permit</div>
-      <div class="th" style="font-size:10px">geo</div>
-      <div class="th" style="font-size:10px">coastal</div>
+      <div class="th" style="font-size:9px">building permit</div>
+      <div class="th" style="font-size:9px">geo report</div>
+      <div class="th" style="font-size:9px">coastal report</div>
     </div>
 
     <div id="tbl-body"></div>
@@ -375,17 +375,15 @@ function showPopup(latlng,p){
       (p.notes?"<div style=\"margin-top:7px;font-size:11px;color:#999;line-height:1.4\">"+p.notes+"</div>":"")
     ).openOn(map);
 
-      // ── report links in popup ──
-      ;(function(){
-        const _a = (p.apn||'').replace(/\D/g,'');
-        const _pu = permitByAPN[_a]||'';
-        const _rr = reportsByAPN[_a]||{};
-        let _lk = '';
-        if(_pu) _lk += '<div class="pop-link"><a href="'+_pu+'" target="_blank">📄 Building Permit</a></div>';
-        if(_rr.geo_url) _lk += '<div class="pop-link"><a href="'+_rr.geo_url+'" target="_blank">🪨 Geo Report</a></div>';
-        if(_rr.coastal_url) _lk += '<div class="pop-link"><a href="'+_rr.coastal_url+'" target="_blank">🌊 Coastal Engineering</a></div>';
-        if(_lk && popup._contentNode) { popup._contentNode.innerHTML += _lk; }
-      })();
+      // report links in popup
+      var _popA = (p.apn||'').replace(/\D/g,'');
+      var _popPU = permitByAPN[_popA]||'';
+      var _popRR = reportsByAPN[_popA]||{};
+      var _popLk = '';
+      if(_popPU) _popLk += '<div class="pop-link"><a href="'+_popPU+'" target="_blank">Building Permit</a></div>';
+      if(_popRR.geo_url) _popLk += '<div class="pop-link"><a href="'+_popRR.geo_url+'" target="_blank">Geo Report</a></div>';
+      if(_popRR.coastal_url) _popLk += '<div class="pop-link"><a href="'+_popRR.coastal_url+'" target="_blank">Coastal Engineering</a></div>';
+      if(_popLk && document.querySelector('.leaflet-popup-content')) document.querySelector('.leaflet-popup-content').innerHTML += _popLk;
 
 }
 
@@ -440,16 +438,16 @@ function renderTable(){
       "<div class=\"td td-stat\"><span class=\""+schip(r.status)+"\">"+r.status+"</span></div>";
     
         // ── permit / geo / coastal cells ──
-        const apnStrip = (r.apn||'').replace(/\D/g,'');
-        const _pU = permitByAPN[apnStrip]||'';
-        const _rp = reportsByAPN[apnStrip]||{};
-        const _tdP = document.createElement('div'); _tdP.className='td td-permit';
+        var apnStrip = (r.apn||'').replace(/\D/g,'');
+        var _pU = permitByAPN[apnStrip]||'';
+        var _rp = reportsByAPN[apnStrip]||{};
+        var _tdP = document.createElement('div'); _tdP.className='td td-permit';
         _tdP.innerHTML = _pU ? '<a href="'+_pU+'" target="_blank" onclick="event.stopPropagation()">permit</a>' : '\u2014';
         div.appendChild(_tdP);
-        const _tdG = document.createElement('div'); _tdG.className='td td-geo';
+        var _tdG = document.createElement('div'); _tdG.className='td td-geo';
         _tdG.innerHTML = _rp.geo_url ? '<a href="'+_rp.geo_url+'" target="_blank" onclick="event.stopPropagation()">geo</a>' : '\u2014';
         div.appendChild(_tdG);
-        const _tdC = document.createElement('div'); _tdC.className='td td-coastal';
+        var _tdC = document.createElement('div'); _tdC.className='td td-coastal';
         _tdC.innerHTML = _rp.coastal_url ? '<a href="'+_rp.coastal_url+'" target="_blank" onclick="event.stopPropagation()">coastal</a>' : '\u2014';
         div.appendChild(_tdC);
 
@@ -615,6 +613,9 @@ async function loadData(){
           }
         }
         console.log('Permits:',Object.keys(permitByAPN).length,'Reports:',Object.keys(reportsByAPN).length);
+        // Re-render table and build blue dots AFTER data is loaded
+        applyFilters();
+        buildReportDots();
       }catch(e){console.warn('fetchPermits error:',e)}
     }
 
