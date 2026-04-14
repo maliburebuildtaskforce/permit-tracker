@@ -201,10 +201,13 @@ html, body {
   #stats-row { padding:5px 16px; gap:12px; }
 }
 
-  .td-permit { min-width:32px; max-width:48px; text-align:center; font-size:16px; }
-  .td-permit a { text-decoration:none; }
-  .td-empty { color:#ccc; font-size:11px; }
-  .pop-permit a:hover { text-decoration:underline; }
+  .td-permit,.td-geo { min-width:36px; max-width:60px; text-align:center; }
+  .td-permit a,.td-geo a { text-decoration:none; font-size:13px; color:#16a34a; font-weight:600; }
+  .td-geo a { color:#1d4ed8; }
+  .td-permit a:hover,.td-geo a:hover { text-decoration:underline; }
+  .td-empty { color:#ccc; font-size:11px; text-align:center; }
+  .pop-permit a,.pop-geo a { font-weight:600; }
+  .pop-permit a:hover,.pop-geo a:hover { text-decoration:underline; }
 </style>
 </head>
 <body>
@@ -277,7 +280,7 @@ html, body {
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6CaSItN1ctobH8NfdYzIlha6xd_LwNR6OpSYdS7WvWcJ1wq0qq0HdUH5rMfmHm8eKpbp2Ic6oViK3/pub?gid=678670005&single=true&output=csv";
 const SFR_CSV_URL = "palisades_permits_sfr.csv";
 const GEOTECH_CSV_URL = "palisades_permits_geotech.csv";
-let permitMap = {};   // keyed by 10-digit APN, value: {permit_url, geotech_url, description}
+let permitMap = {};
 const PROXY = u => "https://corsproxy.io/?" + encodeURIComponent(u);
 
 const S_COLOR = {
@@ -369,8 +372,8 @@ function showPopup(latlng,p){
       "<div class=\"pop-row\"><span class=\"pop-k\">zone captain</span><span class=\"pop-v\">"+( p.ambassador||"—")+"</span></div>"+
       "<div class=\"pop-row\"><span class=\"pop-k\">status</span><span class=\""+schip(p.status)+"\">"+( p.status||"unknown")+"</span></div>"+
       (p.notes?"<div style=\"margin-top:7px;font-size:11px;color:#999;line-height:1.4\">"+p.notes+"</div>":"")
-      (p.permit_url ? "<div class=\"pop-row pop-permit\"><span class=\"pop-k\">🏠 permit</span><span class=\"pop-v\"><a href=\""+p.permit_url+"\" target=\"_blank\" style=\"color:#16a34a;font-weight:600\">view permit ↗</a></span></div>" : "")+
-      (p.geotech_url ? "<div class=\"pop-row\"><span class=\"pop-k\">📋 geo report</span><span class=\"pop-v\"><a href=\""+p.geotech_url+"\" target=\"_blank\" style=\"color:#1d4ed8\">view report ↗</a></span></div>" : "")
+      (p.permit_url?"<div class=\"pop-row pop-permit\"><span class=\"pop-k\">permit</span><span class=\"pop-v\"><a href=\""+p.permit_url+"\" target=\"_blank\" style=\"color:#16a34a;font-weight:600\">view permit ↗</a></span></div>":"")+
+      (p.geotech_url?"<div class=\"pop-row pop-geo\"><span class=\"pop-k\">geo report</span><span class=\"pop-v\"><a href=\""+p.geotech_url+"\" target=\"_blank\" style=\"color:#1d4ed8;font-weight:600\">view report ↗</a></span></div>":"")
     ).openOn(map);
 }
 
@@ -422,7 +425,9 @@ function renderTable(){
       "<div class=\"td td-apn\">"+r.apn+"</div>"+
       "<div class=\"td td-addr\">"+r.address+"</div>"+
       "<div class=\"td td-cap\">"+(r.ambassador||"—")+"</div>"+
-      "<div class=\"td td-stat\"><span class=\""+schip(r.status)+"\">"+r.status+"</span></div>";
+      "<div class=\"td td-stat\"><span class=\""+schip(r.status)+"\">"+r.status+"</span></div>"+
+      (r.permit_url?"<div class=\"td td-permit\"><a href=\""+r.permit_url+"\" target=\"_blank\" onclick=\"event.stopPropagation()\">permit</a></div>":"<div class=\"td td-permit td-empty\">—</div>")+
+      (r.geotech_url?"<div class=\"td td-geo\"><a href=\""+r.geotech_url+"\" target=\"_blank\" onclick=\"event.stopPropagation()\">geo</a></div>":"<div class=\"td td-geo td-empty\">—</div>");
     div.addEventListener("click",()=>{
       selectedApn=r.apn; renderMarkers(); highlightRow(r.apn);
       if(r.lat&&r.lng) map.setView([r.lat,r.lng],16,{animate:true});
@@ -498,7 +503,6 @@ function parseCSV(text){
       notes:get("Notes"),
       permit_url:(permitMap[(get("APN")||"").replace(/-/g,"")]||{}).permit_url||null,
       geotech_url:(permitMap[(get("APN")||"").replace(/-/g,"")]||{}).geotech_url||null,
-      permit_desc:(permitMap[(get("APN")||"").replace(/-/g,"")]||{}).description||null,
     };
   }).filter(p=>p.apn);
 }
@@ -543,50 +547,51 @@ async function loadData(){
 }
 
 async function fetchPermits(){
+  function csvParseLine(line){
+    const v=[];let c="",q=false;
+    for(let i=0;i<line.length;i++){
+      const ch=line[i];
+      if(ch==='"'){q=!q;}
+      else if(ch===","&&!q){v.push(c.trim());c="";}
+      else{c+=ch;}
+    }
+    v.push(c.trim());return v;
+  }
+  function ci(hdr,name){return hdr.indexOf(name);}
   try{
-    // Load SFR permits
-    const r1 = await fetch(SFR_CSV_URL);
+    const r1=await fetch(SFR_CSV_URL);
     if(r1.ok){
-      const text = await r1.text();
-      const lines = text.split("\n");
-      const headers = lines[0].split(",");
-      const col = h => headers.indexOf(h);
-      for(let i=1;i<lines.length;i++){
-        if(!lines[i].trim()) continue;
-        // simple split (no quoted commas in this CSV for key fields)
-        const vals = lines[i].split(",");
-        const apn = (vals[col("APN")]||"").replace(/-/g,"").trim();
-        if(!apn) continue;
-        if(!permitMap[apn]) permitMap[apn] = {};
-        permitMap[apn].permit_url = vals[col("doc_url")]||null;
-        permitMap[apn].description = vals[col("DescriptionOfWork")]||null;
+      const t=await r1.text(),ln=t.split("\n"),h=csvParseLine(ln[0]);
+      const iA=ci(h,"APN"),iU=ci(h,"doc_url"),iD=ci(h,"DescriptionOfWork");
+      for(let i=1;i<ln.length;i++){
+        if(!ln[i].trim())continue;
+        const v=csvParseLine(ln[i]),a=(v[iA]||"").replace(/-/g,"").trim();
+        if(!a)continue;
+        if(!permitMap[a])permitMap[a]={};
+        permitMap[a].permit_url=v[iU]||null;
+        permitMap[a].description=v[iD]||null;
       }
     }
-    // Load geotech permits
-    const r2 = await fetch(GEOTECH_CSV_URL);
+    const r2=await fetch(GEOTECH_CSV_URL);
     if(r2.ok){
-      const text = await r2.text();
-      const lines = text.split("\n");
-      const headers = lines[0].split(",");
-      const col = h => headers.indexOf(h);
-      for(let i=1;i<lines.length;i++){
-        if(!lines[i].trim()) continue;
-        const vals = lines[i].split(",");
-        const apn = (vals[col("APN")]||"").replace(/-/g,"").trim();
-        if(!apn) continue;
-        if(!permitMap[apn]) permitMap[apn] = {};
-        permitMap[apn].geotech_url = vals[col("doc_url")]||null;
+      const t=await r2.text(),ln=t.split("\n"),h=csvParseLine(ln[0]);
+      const iA=ci(h,"APN"),iU=ci(h,"doc_url");
+      for(let i=1;i<ln.length;i++){
+        if(!ln[i].trim())continue;
+        const v=csvParseLine(ln[i]),a=(v[iA]||"").replace(/-/g,"").trim();
+        if(!a)continue;
+        if(!permitMap[a])permitMap[a]={};
+        permitMap[a].geotech_url=v[iU]||null;
       }
     }
-  }catch(e){ console.warn("fetchPermits error:", e); }
+  }catch(e){console.warn("fetchPermits:",e);}
 }
 
 async function init(){
   map.zoomControl.setPosition("topleft");
   const[_]=await Promise.allSettled([
     fetch("parcels.geojson").then(r=>r.json()).then(g=>{window._geojson=g;}).catch(()=>{}),
-    loadData(),
-    fetchPermits()
+    (async()=>{await fetchPermits(); await loadData();})()
   ]);
   if(window._geojson) buildParcels(window._geojson);
   document.getElementById("loading").style.display="none";
