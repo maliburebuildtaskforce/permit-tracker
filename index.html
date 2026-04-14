@@ -254,13 +254,45 @@ html, body {
       <div class="leg-row"><div class="leg-dot" style="background:#7c3aed"></div>under construction</div>
     </div>
   </div>
-  <div class="legend" style="bottom:32px">
+
+    <div style="position:absolute;bottom:90px;right:12px;z-index:800;
+      background:rgba(255,255,255,0.95);border-radius:10px;padding:10px 14px;
+      font-size:11px;box-shadow:0 1px 4px rgba(0,0,0,.15);pointer-events:auto">
     <div style="font-weight:700;font-size:9px;letter-spacing:1px;color:#999;margin-bottom:6px">AVAILABLE REPORTS</div>
-    <div class="leg-row"><div class="leg-dot" style="background:#8B4513"></div>geo report</div>
-    <div class="leg-row"><div class="leg-dot" style="background:#1a73e8"></div>coastal report</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+      <div style="width:10px;height:10px;border-radius:50%;background:#8B4513"></div>geo report
+    </div>
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="width:10px;height:10px;border-radius:50%;background:#1a73e8"></div>coastal report
+    </div>
   </div>
 
-    <script>
+  <div id="div"></div>
+
+  <div id="tbl-section">
+    <div id="search-wrap">
+      <input id="search" type="search" autocomplete="off" autocorrect="off" autocapitalize="off"
+             placeholder="search address, apn, zone captain…" oninput="applyFilters()">
+      <span id="rec-count"></span>
+    </div>
+
+    <div id="stats-row"></div>
+
+    <div id="tbl-head">
+      <div class="th" onclick="sortBy('apn',this)">apn <span id="s-apn"></span></div>
+      <div class="th act" onclick="sortBy('address',this)">address <span id="s-address">↑</span></div>
+      <div class="th" onclick="sortBy('ambassador',this)">zone captain <span id="s-ambassador"></span></div>
+      <div class="th" onclick="sortBy('status',this)">status <span id="s-status"></span></div>
+      <div class="th" style="font-size:9px">building permit</div>
+      <div class="th" style="font-size:9px">geo report</div>
+      <div class="th" style="font-size:9px">coastal report</div>
+    </div>
+
+    <div id="tbl-body"></div>
+  </div>
+</div>
+
+<script>
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6CaSItN1ctobH8NfdYzIlha6xd_LwNR6OpSYdS7WvWcJ1wq0qq0HdUH5rMfmHm8eKpbp2Ic6oViK3/pub?gid=678670005&single=true&output=csv";
 const PROXY = u => "https://corsproxy.io/?" + encodeURIComponent(u);
 
@@ -344,26 +376,28 @@ function renderMarkers(){
   dotsGroup.addTo(map);
 }
 
-function showPopup(latlng, p){
-      var _a = p.apn.replace(/-/g,"");
-      var _pu = permitByAPN[_a];
-      var _rr = reportsByAPN[_a];
-      var _lk = "";
-      if(_pu) _lk += "<div class=\"pop-link\"><a href=\""+_pu+"\" target=\"_blank\">Building Permit</a></div>";
-      if(_rr && _rr.geo_url) _lk += "<div class=\"pop-link\"><a href=\""+_rr.geo_url+"\" target=\"_blank\">Geo Report</a></div>";
-      if(_rr && _rr.coastal_url) _lk += "<div class=\"pop-link\"><a href=\""+_rr.coastal_url+"\" target=\"_blank\">Coastal Engineering</a></div>";
-      var _notes = p.notes ? "<div style=\"margin-top:7px;font-size:11px;color:#999;line-height:1.4\">"+p.notes+"</div>" : "";
-      L.popup({closeButton:true,maxWidth:280})
-        .setLatLng(latlng)
-        .setContent(
-          "<div class=\"pop-addr\">"+(p.address||"unknown address")+"</div>"+
-          "<div class=\"pop-row\"><span class=\"pop-k\">apn</span><span class=\"pop-v\">"+(p.apn||"\u2014")+"</span></div>"+
-          "<div class=\"pop-row\"><span class=\"pop-k\">zone captain</span><span class=\"pop-v\">"+(p.ambassador||"\u2014")+"</span></div>"+
-          "<div class=\"pop-row\"><span class=\"pop-k\">status</span><span class=\""+schip(p.status)+"\">"+(p.status||"unknown")+"</span></div>"+
-          _lk + _notes
-        )
-        .openOn(map);
-    }
+function showPopup(latlng,p){
+  L.popup({closeButton:false,maxWidth:260})
+    .setLatLng(latlng)
+    .setContent(
+      "<div class=\"pop-addr\">"+( p.address||"unknown address")+"</div>"+
+      "<div class=\"pop-row\"><span class=\"pop-k\">apn</span><span class=\"pop-v\">"+( p.apn||"—")+"</span></div>"+
+      "<div class=\"pop-row\"><span class=\"pop-k\">zone captain</span><span class=\"pop-v\">"+( p.ambassador||"—")+"</span></div>"+
+      "<div class=\"pop-row\"><span class=\"pop-k\">status</span><span class=\""+schip(p.status)+"\">"+( p.status||"unknown")+"</span></div>"+
+      (p.notes?"<div style=\"margin-top:7px;font-size:11px;color:#999;line-height:1.4\">"+p.notes+"</div>":"")
+    ).openOn(map);
+
+      // report links in popup
+      var _popA = (p.apn||'').replace(/\D/g,'');
+      var _popPU = permitByAPN[_popA]||'';
+      var _popRR = reportsByAPN[_popA]||{};
+      var _popLk = '';
+      if(_popPU) _popLk += '<div class="pop-link"><a href="'+_popPU+'" target="_blank">Building Permit</a></div>';
+      if(_popRR.geo_url) _popLk += '<div class="pop-link"><a href="'+_popRR.geo_url+'" target="_blank">Geo Report</a></div>';
+      if(_popRR.coastal_url) _popLk += '<div class="pop-link"><a href="'+_popRR.coastal_url+'" target="_blank">Coastal Engineering</a></div>';
+      if(_popLk && document.querySelector('.leaflet-popup-content')) document.querySelector('.leaflet-popup-content').innerHTML += _popLk;
+
+}
 
 function highlightRow(apn){
   document.querySelectorAll(".row").forEach(r=>r.classList.toggle("hl",r.dataset.apn===apn));
@@ -580,7 +614,7 @@ async function loadData(){
           }
         }
         const rptTxt = await rptRes.text();
-        const rptLines = rptTxt.replace(/\r/g,'').trim().split('\n');
+        const rptLines = rptTxt.trim().split('\n');
         if(rptLines.length>1){
           const h=csvLine(rptLines[0]);
           const iA=h.indexOf('APN'), iG=h.indexOf('geo_url'), iC=h.indexOf('coastal_url');
@@ -602,46 +636,42 @@ async function loadData(){
       if(!window._geojson) return;
       if(reportLayer){ map.removeLayer(reportLayer); }
       if(window._coastalLayer){ map.removeLayer(window._coastalLayer); }
-      var OFF=0.00008;
-      var geoM=[], coaM=[];
-      for(var apn in reportsByAPN){
-        var r=reportsByAPN[apn];
+      const geoMarkers=[];
+      const coastalMarkers=[];
+      for(const apn in reportsByAPN){
+        const r=reportsByAPN[apn];
         if(!r.geo_url && !r.coastal_url) continue;
-        var dashed=apn.length===10
-          ? apn.slice(0,4)+"-"+apn.slice(4,7)+"-"+apn.slice(7) : apn;
-        var p=apnMap[dashed];
+        const dashed=apn.length===10
+          ? apn.slice(0,4)+"-"+apn.slice(4,7)+"-"+apn.slice(7)
+          : apn;
+        const p=apnMap[dashed];
         if(!p||!p.lat||!p.lng) continue;
-        var hasBoth=!!(r.geo_url && r.coastal_url);
         if(r.geo_url){
-          var lat=p.lat-(hasBoth?OFF:0), lng=p.lng-(hasBoth?OFF:0);
-          var m=L.circleMarker([lat,lng],{
+          const m=L.circleMarker([p.lat,p.lng],{
             radius:4, color:"#8B4513", fillColor:"#8B4513",
-            fillOpacity:0.75, weight:1, opacity:0.9
+            fillOpacity:0.7, weight:1, opacity:0.9
           });
-          var tip="<b style=\"font-size:11px\">"+(p.address||dashed)+"</b>";
+          let tip="<b style=\"font-size:11px\">"+(p.address||dashed)+"</b>";
           tip+="<br><span style=\"color:#888;font-size:10px\">"+dashed+"</span>";
           tip+="<br><a href=\""+r.geo_url+"\" target=\"_blank\">Geo Report</a>";
-          if(r.coastal_url) tip+="<br><a href=\""+r.coastal_url+"\" target=\"_blank\">Coastal Engineering</a>";
           m.bindPopup(tip,{maxWidth:250});
-          geoM.push(m);
+          geoMarkers.push(m);
         }
         if(r.coastal_url){
-          var lat=p.lat+(hasBoth?OFF:0), lng=p.lng+(hasBoth?OFF:0);
-          var m=L.circleMarker([lat,lng],{
+          const m=L.circleMarker([p.lat,p.lng],{
             radius:4, color:"#1a73e8", fillColor:"#1a73e8",
-            fillOpacity:0.75, weight:1, opacity:0.9
+            fillOpacity:0.7, weight:1, opacity:0.9
           });
-          var tip="<b style=\"font-size:11px\">"+(p.address||dashed)+"</b>";
+          let tip="<b style=\"font-size:11px\">"+(p.address||dashed)+"</b>";
           tip+="<br><span style=\"color:#888;font-size:10px\">"+dashed+"</span>";
-          if(r.geo_url) tip+="<br><a href=\""+r.geo_url+"\" target=\"_blank\">Geo Report</a>";
-          tip+="<br><a href=\""+r.coastal_url+"\" target=\"_blank\">Coastal Engineering</a>";
+          tip+="<br><a href=\""+r.coastal_url+"\" target=\"_blank\">Coastal Engineering Report</a>";
           m.bindPopup(tip,{maxWidth:250});
-          coaM.push(m);
+          coastalMarkers.push(m);
         }
       }
-      reportLayer=L.layerGroup(geoM).addTo(map);
-      window._coastalLayer=L.layerGroup(coaM).addTo(map);
-      console.log("Report dots: "+geoM.length+" geo (brown), "+coaM.length+" coastal (blue)");
+      reportLayer=L.layerGroup(geoMarkers).addTo(map);
+      window._coastalLayer=L.layerGroup(coastalMarkers).addTo(map);
+      console.log("Report dots: "+geoMarkers.length+" geo (brown), "+coastalMarkers.length+" coastal (blue)");
     }
 
     async function init(){
