@@ -200,6 +200,11 @@ html, body {
   #search-wrap { padding:7px 16px; }
   #stats-row { padding:5px 16px; gap:12px; }
 }
+
+  .td-permit { min-width:32px; max-width:48px; text-align:center; font-size:16px; }
+  .td-permit a { text-decoration:none; }
+  .td-empty { color:#ccc; font-size:11px; }
+  .pop-permit a:hover { text-decoration:underline; }
 </style>
 </head>
 <body>
@@ -270,6 +275,9 @@ html, body {
 
 <script>
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6CaSItN1ctobH8NfdYzIlha6xd_LwNR6OpSYdS7WvWcJ1wq0qq0HdUH5rMfmHm8eKpbp2Ic6oViK3/pub?gid=678670005&single=true&output=csv";
+const SFR_CSV_URL = "palisades_permits_sfr.csv";
+const GEOTECH_CSV_URL = "palisades_permits_geotech.csv";
+let permitMap = {};   // keyed by 10-digit APN, value: {permit_url, geotech_url, description}
 const PROXY = u => "https://corsproxy.io/?" + encodeURIComponent(u);
 
 const S_COLOR = {
@@ -361,6 +369,8 @@ function showPopup(latlng,p){
       "<div class=\"pop-row\"><span class=\"pop-k\">zone captain</span><span class=\"pop-v\">"+( p.ambassador||"—")+"</span></div>"+
       "<div class=\"pop-row\"><span class=\"pop-k\">status</span><span class=\""+schip(p.status)+"\">"+( p.status||"unknown")+"</span></div>"+
       (p.notes?"<div style=\"margin-top:7px;font-size:11px;color:#999;line-height:1.4\">"+p.notes+"</div>":"")
+      (p.permit_url ? "<div class=\"pop-row pop-permit\"><span class=\"pop-k\">🏠 permit</span><span class=\"pop-v\"><a href=\""+p.permit_url+"\" target=\"_blank\" style=\"color:#16a34a;font-weight:600\">view permit ↗</a></span></div>" : "")+
+      (p.geotech_url ? "<div class=\"pop-row\"><span class=\"pop-k\">📋 geo report</span><span class=\"pop-v\"><a href=\""+p.geotech_url+"\" target=\"_blank\" style=\"color:#1d4ed8\">view report ↗</a></span></div>" : "")
     ).openOn(map);
 }
 
@@ -486,6 +496,9 @@ function parseCSV(text){
       lat:parseFloat(get("Lat"))||null,
       lng:parseFloat(get("Lng"))||null,
       notes:get("Notes"),
+      permit_url:(permitMap[(get("APN")||"").replace(/-/g,"")]||{}).permit_url||null,
+      geotech_url:(permitMap[(get("APN")||"").replace(/-/g,"")]||{}).geotech_url||null,
+      permit_desc:(permitMap[(get("APN")||"").replace(/-/g,"")]||{}).description||null,
     };
   }).filter(p=>p.apn);
 }
@@ -529,11 +542,51 @@ async function loadData(){
   }
 }
 
-async function init(){
+async async function fetchPermits(){
+  try{
+    // Load SFR permits
+    const r1 = await fetch(SFR_CSV_URL);
+    if(r1.ok){
+      const text = await r1.text();
+      const lines = text.split("\n");
+      const headers = lines[0].split(",");
+      const col = h => headers.indexOf(h);
+      for(let i=1;i<lines.length;i++){
+        if(!lines[i].trim()) continue;
+        // simple split (no quoted commas in this CSV for key fields)
+        const vals = lines[i].split(",");
+        const apn = (vals[col("APN")]||"").replace(/-/g,"").trim();
+        if(!apn) continue;
+        if(!permitMap[apn]) permitMap[apn] = {};
+        permitMap[apn].permit_url = vals[col("doc_url")]||null;
+        permitMap[apn].description = vals[col("DescriptionOfWork")]||null;
+      }
+    }
+    // Load geotech permits
+    const r2 = await fetch(GEOTECH_CSV_URL);
+    if(r2.ok){
+      const text = await r2.text();
+      const lines = text.split("\n");
+      const headers = lines[0].split(",");
+      const col = h => headers.indexOf(h);
+      for(let i=1;i<lines.length;i++){
+        if(!lines[i].trim()) continue;
+        const vals = lines[i].split(",");
+        const apn = (vals[col("APN")]||"").replace(/-/g,"").trim();
+        if(!apn) continue;
+        if(!permitMap[apn]) permitMap[apn] = {};
+        permitMap[apn].geotech_url = vals[col("doc_url")]||null;
+      }
+    }
+  }catch(e){ console.warn("fetchPermits error:", e); }
+}
+
+function init(){
   map.zoomControl.setPosition("topleft");
   const[_]=await Promise.allSettled([
     fetch("parcels.geojson").then(r=>r.json()).then(g=>{window._geojson=g;}).catch(()=>{}),
-    loadData()
+    loadData(),
+    fetchPermits()
   ]);
   if(window._geojson) buildParcels(window._geojson);
   document.getElementById("loading").style.display="none";
