@@ -205,11 +205,6 @@ html, body {
   .td-permit a { text-decoration:none; }
   .td-empty { color:#ccc; font-size:11px; }
   .pop-permit a:hover { text-decoration:underline; }
-
-  .td-permit { min-width:32px; max-width:48px; text-align:center; font-size:16px; }
-  .td-permit a { text-decoration:none; }
-  .td-empty { color:#ccc; font-size:11px; }
-  .pop-permit a:hover { text-decoration:underline; }
 </style>
 </head>
 <body>
@@ -280,9 +275,6 @@ html, body {
 
 <script>
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6CaSItN1ctobH8NfdYzIlha6xd_LwNR6OpSYdS7WvWcJ1wq0qq0HdUH5rMfmHm8eKpbp2Ic6oViK3/pub?gid=678670005&single=true&output=csv";
-const SFR_CSV_URL = "palisades_permits_sfr.csv";
-const GEOTECH_CSV_URL = "palisades_permits_geotech.csv";
-let permitMap = {};   // keyed by 10-digit APN, value: {permit_url, geotech_url, description}
 const SFR_CSV_URL = "palisades_permits_sfr.csv";
 const GEOTECH_CSV_URL = "palisades_permits_geotech.csv";
 let permitMap = {};   // keyed by 10-digit APN, value: {permit_url, geotech_url, description}
@@ -377,8 +369,6 @@ function showPopup(latlng,p){
       "<div class=\"pop-row\"><span class=\"pop-k\">zone captain</span><span class=\"pop-v\">"+( p.ambassador||"—")+"</span></div>"+
       "<div class=\"pop-row\"><span class=\"pop-k\">status</span><span class=\""+schip(p.status)+"\">"+( p.status||"unknown")+"</span></div>"+
       (p.notes?"<div style=\"margin-top:7px;font-size:11px;color:#999;line-height:1.4\">"+p.notes+"</div>":"")
-      (p.permit_url ? "<div class=\"pop-row pop-permit\"><span class=\"pop-k\">🏠 permit</span><span class=\"pop-v\"><a href=\""+p.permit_url+"\" target=\"_blank\" style=\"color:#16a34a;font-weight:600\">view permit ↗</a></span></div>" : "")+
-      (p.geotech_url ? "<div class=\"pop-row\"><span class=\"pop-k\">📋 geo report</span><span class=\"pop-v\"><a href=\""+p.geotech_url+"\" target=\"_blank\" style=\"color:#1d4ed8\">view report ↗</a></span></div>" : "")
       (p.permit_url ? "<div class=\"pop-row pop-permit\"><span class=\"pop-k\">🏠 permit</span><span class=\"pop-v\"><a href=\""+p.permit_url+"\" target=\"_blank\" style=\"color:#16a34a;font-weight:600\">view permit ↗</a></span></div>" : "")+
       (p.geotech_url ? "<div class=\"pop-row\"><span class=\"pop-k\">📋 geo report</span><span class=\"pop-v\"><a href=\""+p.geotech_url+"\" target=\"_blank\" style=\"color:#1d4ed8\">view report ↗</a></span></div>" : "")
     ).openOn(map);
@@ -552,7 +542,7 @@ async function loadData(){
   }
 }
 
-async async function fetchPermits(){
+async function fetchPermits(){
   try{
     // Load SFR permits
     const r1 = await fetch(SFR_CSV_URL);
@@ -591,7 +581,7 @@ async async function fetchPermits(){
   }catch(e){ console.warn("fetchPermits error:", e); }
 }
 
-function init(){
+async function init(){
   map.zoomControl.setPosition("topleft");
   const[_]=await Promise.allSettled([
     fetch("parcels.geojson").then(r=>r.json()).then(g=>{window._geojson=g;}).catch(()=>{}),
