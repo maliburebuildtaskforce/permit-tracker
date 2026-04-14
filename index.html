@@ -201,7 +201,8 @@ html, body {
   #stats-row { padding:5px 16px; gap:12px; }
 }
 
-  .td-permit,.td-geo { min-width:36px; max-width:60px; text-align:center; }
+  .row { grid-template-columns: 100px 1fr 80px 90px 50px 40px !important; }
+  .td-permit,.td-geo { text-align:center; }
   .td-permit a,.td-geo a { text-decoration:none; font-size:13px; color:#16a34a; font-weight:600; }
   .td-geo a { color:#1d4ed8; }
   .td-permit a:hover,.td-geo a:hover { text-decoration:underline; }
@@ -372,6 +373,7 @@ function showPopup(latlng,p){
       "<div class=\"pop-row\"><span class=\"pop-k\">zone captain</span><span class=\"pop-v\">"+( p.ambassador||"—")+"</span></div>"+
       "<div class=\"pop-row\"><span class=\"pop-k\">status</span><span class=\""+schip(p.status)+"\">"+( p.status||"unknown")+"</span></div>"+
       (p.notes?"<div style=\"margin-top:7px;font-size:11px;color:#999;line-height:1.4\">"+p.notes+"</div>":"")
++
       (p.permit_url?"<div class=\"pop-row pop-permit\"><span class=\"pop-k\">permit</span><span class=\"pop-v\"><a href=\""+p.permit_url+"\" target=\"_blank\" style=\"color:#16a34a;font-weight:600\">view permit ↗</a></span></div>":"")+
       (p.geotech_url?"<div class=\"pop-row pop-geo\"><span class=\"pop-k\">geo report</span><span class=\"pop-v\"><a href=\""+p.geotech_url+"\" target=\"_blank\" style=\"color:#1d4ed8;font-weight:600\">view report ↗</a></span></div>":"")
     ).openOn(map);
