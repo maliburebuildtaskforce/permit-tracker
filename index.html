@@ -201,15 +201,15 @@ html, body {
   #stats-row { padding:5px 16px; gap:12px; }
 }
 
-  .row { grid-template-columns: 100px 1fr 80px 90px 50px 40px !important; }
-  .td-permit,.td-geo { text-align:center; }
-  .td-permit a,.td-geo a { text-decoration:none; font-size:13px; color:#16a34a; font-weight:600; }
-  .td-geo a { color:#1d4ed8; }
-  .td-permit a:hover,.td-geo a:hover { text-decoration:underline; }
-  .td-empty { color:#ccc; font-size:11px; text-align:center; }
-  .pop-permit a,.pop-geo a { font-weight:600; }
-  .pop-permit a:hover,.pop-geo a:hover { text-decoration:underline; }
-</style>
+    /* ── permit/geo/coastal columns + blue dots ── */
+    #tbl-head, .row { grid-template-columns: 100px 1fr 80px 80px 48px 36px 52px !important; }
+    .td-permit a, .td-geo a, .td-coastal a { color:#1a73e8; text-decoration:none; font-size:11px; }
+    .td-permit a:hover, .td-geo a:hover, .td-coastal a:hover { text-decoration:underline; }
+    .pop-link { display:block; margin-top:3px; }
+    .pop-link a { color:#1a73e8; font-size:11px; text-decoration:none; }
+    .pop-link a:hover { text-decoration:underline; }
+
+    </style>
 </head>
 <body>
 
@@ -227,7 +227,7 @@ html, body {
   </div>
   <div id="hdr-r">
     <span id="updated"></span>
-    <button id="refresh-btn" onclick="loadData()">↺ refresh</button>
+    <button id="refresh-btn" onclick="(async()=>{await fetchPermits();await loadData();buildReportDots()})()">↺ refresh</button>
   </div>
 </div>
 
@@ -271,6 +271,9 @@ html, body {
       <div class="th act" onclick="sortBy('address',this)">address <span id="s-address">↑</span></div>
       <div class="th" onclick="sortBy('ambassador',this)">zone captain <span id="s-ambassador"></span></div>
       <div class="th" onclick="sortBy('status',this)">status <span id="s-status"></span></div>
+      <div class="th" style="font-size:10px">permit</div>
+      <div class="th" style="font-size:10px">geo</div>
+      <div class="th" style="font-size:10px">coastal</div>
     </div>
 
     <div id="tbl-body"></div>
@@ -279,9 +282,6 @@ html, body {
 
 <script>
 const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6CaSItN1ctobH8NfdYzIlha6xd_LwNR6OpSYdS7WvWcJ1wq0qq0HdUH5rMfmHm8eKpbp2Ic6oViK3/pub?gid=678670005&single=true&output=csv";
-const SFR_CSV_URL = "palisades_permits_sfr.csv";
-const GEOTECH_CSV_URL = "palisades_permits_geotech.csv";
-let permitMap = {};
 const PROXY = u => "https://corsproxy.io/?" + encodeURIComponent(u);
 
 const S_COLOR = {
@@ -373,10 +373,20 @@ function showPopup(latlng,p){
       "<div class=\"pop-row\"><span class=\"pop-k\">zone captain</span><span class=\"pop-v\">"+( p.ambassador||"—")+"</span></div>"+
       "<div class=\"pop-row\"><span class=\"pop-k\">status</span><span class=\""+schip(p.status)+"\">"+( p.status||"unknown")+"</span></div>"+
       (p.notes?"<div style=\"margin-top:7px;font-size:11px;color:#999;line-height:1.4\">"+p.notes+"</div>":"")
-+
-      (p.permit_url?"<div class=\"pop-row pop-permit\"><span class=\"pop-k\">permit</span><span class=\"pop-v\"><a href=\""+p.permit_url+"\" target=\"_blank\" style=\"color:#16a34a;font-weight:600\">view permit ↗</a></span></div>":"")+
-      (p.geotech_url?"<div class=\"pop-row pop-geo\"><span class=\"pop-k\">geo report</span><span class=\"pop-v\"><a href=\""+p.geotech_url+"\" target=\"_blank\" style=\"color:#1d4ed8;font-weight:600\">view report ↗</a></span></div>":"")
     ).openOn(map);
+
+      // ── report links in popup ──
+      ;(function(){
+        const _a = (p.apn||'').replace(/\D/g,'');
+        const _pu = permitByAPN[_a]||'';
+        const _rr = reportsByAPN[_a]||{};
+        let _lk = '';
+        if(_pu) _lk += '<div class="pop-link"><a href="'+_pu+'" target="_blank">📄 Building Permit</a></div>';
+        if(_rr.geo_url) _lk += '<div class="pop-link"><a href="'+_rr.geo_url+'" target="_blank">🪨 Geo Report</a></div>';
+        if(_rr.coastal_url) _lk += '<div class="pop-link"><a href="'+_rr.coastal_url+'" target="_blank">🌊 Coastal Engineering</a></div>';
+        if(_lk && popup._contentNode) { popup._contentNode.innerHTML += _lk; }
+      })();
+
 }
 
 function highlightRow(apn){
@@ -427,10 +437,23 @@ function renderTable(){
       "<div class=\"td td-apn\">"+r.apn+"</div>"+
       "<div class=\"td td-addr\">"+r.address+"</div>"+
       "<div class=\"td td-cap\">"+(r.ambassador||"—")+"</div>"+
-      "<div class=\"td td-stat\"><span class=\""+schip(r.status)+"\">"+r.status+"</span></div>"+
-      (r.permit_url?"<div class=\"td td-permit\"><a href=\""+r.permit_url+"\" target=\"_blank\" onclick=\"event.stopPropagation()\">permit</a></div>":"<div class=\"td td-permit td-empty\">—</div>")+
-      (r.geotech_url?"<div class=\"td td-geo\"><a href=\""+r.geotech_url+"\" target=\"_blank\" onclick=\"event.stopPropagation()\">geo</a></div>":"<div class=\"td td-geo td-empty\">—</div>");
-    div.addEventListener("click",()=>{
+      "<div class=\"td td-stat\"><span class=\""+schip(r.status)+"\">"+r.status+"</span></div>";
+    
+        // ── permit / geo / coastal cells ──
+        const apnStrip = (r.apn||'').replace(/\D/g,'');
+        const _pU = permitByAPN[apnStrip]||'';
+        const _rp = reportsByAPN[apnStrip]||{};
+        const _tdP = document.createElement('div'); _tdP.className='td td-permit';
+        _tdP.innerHTML = _pU ? '<a href="'+_pU+'" target="_blank" onclick="event.stopPropagation()">permit</a>' : '\u2014';
+        div.appendChild(_tdP);
+        const _tdG = document.createElement('div'); _tdG.className='td td-geo';
+        _tdG.innerHTML = _rp.geo_url ? '<a href="'+_rp.geo_url+'" target="_blank" onclick="event.stopPropagation()">geo</a>' : '\u2014';
+        div.appendChild(_tdG);
+        const _tdC = document.createElement('div'); _tdC.className='td td-coastal';
+        _tdC.innerHTML = _rp.coastal_url ? '<a href="'+_rp.coastal_url+'" target="_blank" onclick="event.stopPropagation()">coastal</a>' : '\u2014';
+        div.appendChild(_tdC);
+
+        div.addEventListener("click",()=>{
       selectedApn=r.apn; renderMarkers(); highlightRow(r.apn);
       if(r.lat&&r.lng) map.setView([r.lat,r.lng],16,{animate:true});
     });
@@ -503,8 +526,6 @@ function parseCSV(text){
       lat:parseFloat(get("Lat"))||null,
       lng:parseFloat(get("Lng"))||null,
       notes:get("Notes"),
-      permit_url:(permitMap[(get("APN")||"").replace(/-/g,"")]||{}).permit_url||null,
-      geotech_url:(permitMap[(get("APN")||"").replace(/-/g,"")]||{}).geotech_url||null,
     };
   }).filter(p=>p.apn);
 }
@@ -548,52 +569,86 @@ async function loadData(){
   }
 }
 
-async function fetchPermits(){
-  function csvParseLine(line){
-    const v=[];let c="",q=false;
-    for(let i=0;i<line.length;i++){
-      const ch=line[i];
-      if(ch==='"'){q=!q;}
-      else if(ch===","&&!q){v.push(c.trim());c="";}
-      else{c+=ch;}
-    }
-    v.push(c.trim());return v;
-  }
-  function ci(hdr,name){return hdr.indexOf(name);}
-  try{
-    const r1=await fetch(SFR_CSV_URL);
-    if(r1.ok){
-      const t=await r1.text(),ln=t.split("\n"),h=csvParseLine(ln[0]);
-      const iA=ci(h,"APN"),iU=ci(h,"doc_url"),iD=ci(h,"DescriptionOfWork");
-      for(let i=1;i<ln.length;i++){
-        if(!ln[i].trim())continue;
-        const v=csvParseLine(ln[i]),a=(v[iA]||"").replace(/-/g,"").trim();
-        if(!a)continue;
-        if(!permitMap[a])permitMap[a]={};
-        permitMap[a].permit_url=v[iU]||null;
-        permitMap[a].description=v[iD]||null;
-      }
-    }
-    const r2=await fetch(GEOTECH_CSV_URL);
-    if(r2.ok){
-      const t=await r2.text(),ln=t.split("\n"),h=csvParseLine(ln[0]);
-      const iA=ci(h,"APN"),iU=ci(h,"doc_url");
-      for(let i=1;i<ln.length;i++){
-        if(!ln[i].trim())continue;
-        const v=csvParseLine(ln[i]),a=(v[iA]||"").replace(/-/g,"").trim();
-        if(!a)continue;
-        if(!permitMap[a])permitMap[a]={};
-        permitMap[a].geotech_url=v[iU]||null;
-      }
-    }
-  }catch(e){console.warn("fetchPermits:",e);}
-}
 
-async function init(){
+    /* ── Report data (permit + geo + coastal) ─────────────── */
+    const SFR_CSV  = 'palisades_permits_sfr_filtered.csv';
+    const RPT_CSV  = 'palisades_permits_reports.csv';
+    let permitByAPN  = {};
+    let reportsByAPN = {};
+
+    function csvLine(line) {
+      const r=[]; let c='',q=false;
+      for(let i=0;i<line.length;i++){
+        const ch=line[i];
+        if(q){if(ch==='"'&&line[i+1]==='"'){c+='"';i++}else if(ch==='"')q=false;else c+=ch}
+        else{if(ch==='"')q=true;else if(ch===','){r.push(c);c=''}else c+=ch}
+      }
+      r.push(c); return r;
+    }
+
+    async function fetchPermits(){
+      try{
+        const [sfrRes, rptRes] = await Promise.all([
+          fetch(SFR_CSV+'?t='+Date.now()), fetch(RPT_CSV+'?t='+Date.now())
+        ]);
+        const sfrTxt = await sfrRes.text();
+        const sfrLines = sfrTxt.trim().split('\n');
+        if(sfrLines.length>1){
+          const h=csvLine(sfrLines[0]);
+          const iA=h.indexOf('APN'), iU=h.indexOf('doc_url');
+          for(let i=1;i<sfrLines.length;i++){
+            const c=csvLine(sfrLines[i]);
+            const apn=(c[iA]||'').replace(/\D/g,'');
+            const url=c[iU]||'';
+            if(apn&&url&&!permitByAPN[apn]) permitByAPN[apn]=url;
+          }
+        }
+        const rptTxt = await rptRes.text();
+        const rptLines = rptTxt.trim().split('\n');
+        if(rptLines.length>1){
+          const h=csvLine(rptLines[0]);
+          const iA=h.indexOf('APN'), iG=h.indexOf('geo_url'), iC=h.indexOf('coastal_url');
+          for(let i=1;i<rptLines.length;i++){
+            const c=csvLine(rptLines[i]);
+            const apn=(c[iA]||'').replace(/\D/g,'');
+            if(apn) reportsByAPN[apn]={geo_url:c[iG]||'', coastal_url:c[iC]||''};
+          }
+        }
+        console.log('Permits:',Object.keys(permitByAPN).length,'Reports:',Object.keys(reportsByAPN).length);
+      }catch(e){console.warn('fetchPermits error:',e)}
+    }
+
+    let reportLayer = null;
+    function buildReportDots(){
+      if(!window._geojson) return;
+      if(reportLayer) map.removeLayer(reportLayer);
+      const markers = [];
+      for(const apn in reportsByAPN){
+        const r = reportsByAPN[apn];
+        if(!r.geo_url && !r.coastal_url) continue;
+        const dashed = apn.length>=10 ? apn.slice(0,4)+'-'+apn.slice(4,7)+'-'+apn.slice(7) : apn;
+        const p = apnMap[dashed];
+        if(!p || !p.lat || !p.lng) continue;
+        const m = L.circleMarker([p.lat, p.lng], {
+          radius: 4, color: '#1a73e8', fillColor: '#1a73e8',
+          fillOpacity: 0.6, weight: 1, opacity: 0.8
+        });
+        let tip = '<b style="font-size:11px">'+(p.address||dashed)+'</b><br>';
+        tip += '<span style="color:#888;font-size:10px">'+dashed+'</span><br>';
+        if(r.geo_url) tip += '<a href="'+r.geo_url+'" target="_blank" style="color:#1a73e8;font-size:11px">Geo Report</a><br>';
+        if(r.coastal_url) tip += '<a href="'+r.coastal_url+'" target="_blank" style="color:#1a73e8;font-size:11px">Coastal Engineering</a><br>';
+        m.bindPopup(tip, {maxWidth:250});
+        markers.push(m);
+      }
+      reportLayer = L.layerGroup(markers).addTo(map);
+      console.log('Blue dots:', markers.length);
+    }
+
+    async function init(){
   map.zoomControl.setPosition("topleft");
   const[_]=await Promise.allSettled([
     fetch("parcels.geojson").then(r=>r.json()).then(g=>{window._geojson=g;}).catch(()=>{}),
-    (async()=>{await fetchPermits(); await loadData();})()
+    loadData()
   ]);
   if(window._geojson) buildParcels(window._geojson);
   document.getElementById("loading").style.display="none";
