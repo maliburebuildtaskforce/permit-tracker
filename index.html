@@ -617,6 +617,10 @@ async function loadData(){
         var pts2=allParcels.filter(function(p){return p.lat&&p.lng;}).map(function(p){return [p.lat,p.lng];});
         if(pts2.length) map.fitBounds(L.latLngBounds(pts2),{padding:[30,30],maxZoom:14});
       }
+    }catch(e){
+      document.getElementById('tbl-body').innerHTML='<div style="padding:24px;text-align:center;color:#dc2626;font-size:12px">could not load data \u2014 try refreshing</div>';
+    }
+  }
 
 
     /* ── Report data (permit + geo + coastal) ─────────────── */
