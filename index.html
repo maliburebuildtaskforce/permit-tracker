@@ -750,6 +750,10 @@ async function loadData(){
       window._coastalLayer=L.layerGroup(coaM).addTo(map);
       console.log('Report dots: '+geoM.length+' geo, '+coaM.length+' coastal');
 
+    }
+
+    
+
 /* ── REPORT LAYER TOGGLE ── */
 var geoVisible = false, coastalVisible = false;
 function toggleGeo() {
@@ -774,9 +778,7 @@ function toggleCoastal() {
     btn.classList.remove('active');
   }
 }
-    }
-
-    async function init(){
+async function init(){
   map.zoomControl.setPosition("topleft");
   const[_]=await Promise.allSettled([
     fetch("parcels.geojson").then(r=>r.json()).then(g=>{window._geojson=g;}).catch(()=>{}),
