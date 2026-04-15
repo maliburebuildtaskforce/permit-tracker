@@ -122,7 +122,7 @@ html, body {
 
 /* table head */
 #tbl-head {
-  display:grid; grid-template-columns:120px 1fr 150px 120px;
+  display:grid; grid-template-columns:90px 1fr 80px 90px 70px 130px 100px;
   padding:0 20px; height:30px; align-items:center;
   border-bottom:1px solid #e5e5e5; flex-shrink:0;
   background:#fafafa;
@@ -135,7 +135,7 @@ html, body {
 #tbl-body::-webkit-scrollbar-thumb { background:#e5e5e5; border-radius:2px; }
 
 .row {
-  display:grid; grid-template-columns:120px 1fr 150px 120px;
+  display:grid; grid-template-columns:90px 1fr 80px 90px 70px 130px 100px;
   padding:0 20px; min-height:38px; align-items:center;
   border-bottom:1px solid #f5f5f5;
   cursor:pointer; transition:background .1s;
@@ -274,7 +274,7 @@ html, body {
     <span class="fcaret">▼</span>
   </div>
   <div class="fsep"></div>
-  <span class="rpt-toggle-label">reports</span>
+  <span class="rpt-toggle-label">show reports</span>
   <button class="rpt-btn geo-btn" id="btn-geo" onclick="toggleGeo()">geo</button>
   <button class="rpt-btn coastal-btn" id="btn-coastal" onclick="toggleCoastal()">coastal</button>
 </div>
@@ -483,7 +483,7 @@ function renderTable(){
         var _pU = permitByAPN[apnStrip]||'';
         var _rp = reportsByAPN[apnStrip]||{geos:[],coasts:[]};
         var _tdP = document.createElement('div'); _tdP.className='td td-permit';
-        _tdP.innerHTML = _pU ? '<a href="'+_pU+'" target="_blank" onclick="event.stopPropagation()">permit</a>' : '';
+        _tdP.innerHTML = _pU ? '<a href="'+_pU+'" target="_blank" onclick="event.stopPropagation()">building</a>' : '';
         div.appendChild(_tdP);
         var _tdG = document.createElement('div'); _tdG.className = 'td td-geo';
       var _gTiles = '';
@@ -607,16 +607,16 @@ async function loadData(){
     document.getElementById("updated").textContent="updated "+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
     populateFilters();
     applyFilters();
-    // Fit map to dots that have coordinates
-    const pts = allParcels.filter(p=>p.lat&&p.lng).map(p=>[p.lat,p.lng]);
-    if(pts.length) {
-      const bounds = L.latLngBounds(pts);
-      map.fitBounds(bounds, {padding:[30,30], maxZoom:14});
-    }
-  }catch(e){
-    document.getElementById("tbl-body").innerHTML="<div style=\"padding:24px;text-align:center;color:#dc2626;font-size:12px\">could not load data — try refreshing.</div>";
-  }
-}
+    // Fit map to permitted parcels only
+      var permitted = allParcels.filter(function(p){return p.status&&p.status.toLowerCase()==='permitted'&&p.lat&&p.lng;});
+      if(permitted.length){
+        var pts=permitted.map(function(p){return [p.lat,p.lng];});
+        var bounds=L.latLngBounds(pts);
+        map.fitBounds(bounds,{padding:[30,30],maxZoom:15});
+      } else {
+        var pts2=allParcels.filter(function(p){return p.lat&&p.lng;}).map(function(p){return [p.lat,p.lng];});
+        if(pts2.length) map.fitBounds(L.latLngBounds(pts2),{padding:[30,30],maxZoom:14});
+      }
 
 
     /* ── Report data (permit + geo + coastal) ─────────────── */
@@ -746,8 +746,8 @@ async function loadData(){
           coaM.push(m);
         }
       }
-      reportLayer=L.layerGroup(geoM).addTo(map);
-      window._coastalLayer=L.layerGroup(coaM).addTo(map);
+      reportLayer=L.layerGroup(geoM);
+      window._coastalLayer=L.layerGroup(coaM);
       console.log('Report dots: '+geoM.length+' geo, '+coaM.length+' coastal');
 
     }
