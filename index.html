@@ -19,7 +19,7 @@
 
 html, body {
   height:100%; overflow:hidden;
-  font-family:-apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif;
+  font-family:Helvetica,Arial,sans-serif;
   background:#fff; color:#111;
   font-size:13px; -webkit-font-smoothing:antialiased;
 }
@@ -84,7 +84,7 @@ html, body {
   background:rgba(255,255,255,0.95);
   border:1px solid #e5e5e5;
   border-radius:6px; padding:8px 12px;
-  font-family:-apple-system,"Helvetica Neue",sans-serif;
+  font-family:Helvetica,Arial,sans-serif;
   pointer-events:none;
 }
 .legend-title { font-size:9px; font-weight:600; letter-spacing:.8px; text-transform:uppercase; color:#999; margin-bottom:5px; }
@@ -136,7 +136,7 @@ html, body {
 
 .row {
   display:grid; grid-template-columns:120px 1fr 150px 120px;
-  padding:0 20px; height:38px; align-items:center;
+  padding:0 20px; min-height:38px; align-items:center;
   border-bottom:1px solid #f5f5f5;
   cursor:pointer; transition:background .1s;
 }
@@ -145,7 +145,8 @@ html, body {
 .row.hl     { background:#f5f5f5; }
 
 .td { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:8px; }
-.td-apn  { color:#aaa; font-size:11px; font-variant-numeric:tabular-nums; font-family:"Helvetica Neue",monospace; }
+.td-geo, .td-coastal { overflow:visible; white-space:normal; }
+.td-apn  { color:#aaa; font-size:11px; font-variant-numeric:tabular-nums; font-family:Helvetica,Arial,monospace; }
 .td-addr { color:#111; font-weight:500; }
 .td-cap  { color:#777; font-size:11px; }
 
@@ -165,7 +166,7 @@ html, body {
   box-shadow:0 4px 20px rgba(0,0,0,0.1);
 }
 .leaflet-popup-tip { background:#fff; }
-.leaflet-popup-content { margin:12px 14px; font-family:-apple-system,"Helvetica Neue",sans-serif; }
+.leaflet-popup-content { margin:12px 14px; font-family:Helvetica,Arial,sans-serif; }
 .pop-addr { font-size:13px; font-weight:600; color:#111; margin-bottom:8px; line-height:1.35; }
 .pop-row { display:flex; justify-content:space-between; gap:16px; margin:4px 0; }
 .pop-k { font-size:11px; color:#999; }
@@ -204,12 +205,39 @@ html, body {
 }
 
     /* ── permit/geo/coastal columns + blue dots ── */
-    #tbl-head, .row { grid-template-columns: 100px 1fr 80px 80px 65px 55px 60px !important; }
-    .td-permit a, .td-geo a, .td-coastal a { color:#1a73e8; text-decoration:none; font-size:11px; }
-    .td-permit a:hover, .td-geo a:hover, .td-coastal a:hover { text-decoration:underline; }
+    #tbl-head, .row { grid-template-columns: 100px 1fr 80px 80px 65px minmax(60px,auto) minmax(60px,auto) !important; }
+    .td-permit a { color:#1a73e8; text-decoration:none; font-size:11px; }
+    .td-permit a:hover { text-decoration:underline; }
     .pop-link { display:block; margin-top:3px; }
     .pop-link a { color:#1a73e8; font-size:11px; text-decoration:none; }
     .pop-link a:hover { text-decoration:underline; }
+
+
+/* ── REPORT TOGGLE BUTTONS ── */
+.rpt-toggle { display:flex; align-items:center; gap:3px; flex-shrink:0; }
+.rpt-toggle-label { font-size:10px; font-weight:500; letter-spacing:.8px; text-transform:uppercase; color:#999; }
+.rpt-btn {
+  font-size:10px; font-weight:600; padding:3px 8px;
+  border:1px solid #ccc; border-radius:3px; cursor:pointer;
+  background:#fff; color:#999; transition:all .15s;
+  font-family:Helvetica,Arial,sans-serif; letter-spacing:.3px;
+}
+.rpt-btn.active { background:#111; color:#fff; border-color:#111; }
+.rpt-btn.geo-btn.active { background:#8B4513; color:#fff; border-color:#8B4513; }
+.rpt-btn.coastal-btn.active { background:#1a73e8; color:#fff; border-color:#1a73e8; }
+
+/* ── REPORT YEAR TILES ── */
+.yr-tiles { display:flex; gap:3px; flex-wrap:wrap; align-items:center; }
+.yr-tile {
+  display:inline-block; padding:1px 5px; border-radius:2px;
+  font-size:9px; font-weight:600; text-decoration:none;
+  font-family:Helvetica,Arial,sans-serif; line-height:1.5;
+  letter-spacing:.2px;
+}
+.yr-tile.geo-tile { background:#f3ebe3; color:#8B4513; border:1px solid #d4b896; }
+.yr-tile.geo-tile:hover { background:#e8d5bf; }
+.yr-tile.coastal-tile { background:#e8f0fe; color:#1a73e8; border:1px solid #a8c7fa; }
+.yr-tile.coastal-tile:hover { background:#d2e3fc; }
 
     </style>
 </head>
@@ -245,6 +273,10 @@ html, body {
     <select id="f-stat" class="fsel" onchange="applyFilters()"><option value="">all statuses</option></select>
     <span class="fcaret">▼</span>
   </div>
+  <div class="fsep"></div>
+  <span class="rpt-toggle-label">reports</span>
+  <button class="rpt-btn geo-btn" id="btn-geo" onclick="toggleGeo()">geo</button>
+  <button class="rpt-btn coastal-btn" id="btn-coastal" onclick="toggleCoastal()">coastal</button>
 </div>
 
 <div id="main">
@@ -276,9 +308,9 @@ html, body {
       <div class="th act" onclick="sortBy('address',this)">address <span id="s-address">↑</span></div>
       <div class="th" onclick="sortBy('ambassador',this)">zone captain <span id="s-ambassador"></span></div>
       <div class="th" onclick="sortBy('status',this)">status <span id="s-status"></span></div>
-      <div class="th" style="font-size:9px">building permit</div>
-      <div class="th" style="font-size:9px">geo report</div>
-      <div class="th" style="font-size:9px">coastal report</div>
+      <div class="th" style="font-size:9px">permit</div>
+      <div class="th" style="font-size:9px">geo</div>
+      <div class="th" style="font-size:9px">coastal</div>
     </div>
 
     <div id="tbl-body"></div>
@@ -453,22 +485,22 @@ function renderTable(){
         var _tdP = document.createElement('div'); _tdP.className='td td-permit';
         _tdP.innerHTML = _pU ? '<a href="'+_pU+'" target="_blank" onclick="event.stopPropagation()">permit</a>' : '';
         div.appendChild(_tdP);
-        var _tdG = document.createElement('div'); _tdG.className='td td-geo';
-        var _gLinks=[];
-        if(_rp.geos) for(var gi=0;gi<_rp.geos.length;gi++){
-          var g=_rp.geos[gi];
-          _gLinks.push('<a href="'+g.url+'" target="_blank" onclick="event.stopPropagation()">geo'+(g.year?' ('+g.year+')':'')+'</a>');
-        }
-        _tdG.innerHTML=_gLinks.join(' ');
-        div.appendChild(_tdG);
-        var _tdC = document.createElement('div'); _tdC.className='td td-coastal';
-        var _cLinks=[];
-        if(_rp.coasts) for(var ci=0;ci<_rp.coasts.length;ci++){
-          var c=_rp.coasts[ci];
-          _cLinks.push('<a href="'+c.url+'" target="_blank" onclick="event.stopPropagation()">coastal'+(c.year?' ('+c.year+')':'')+'</a>');
-        }
-        _tdC.innerHTML=_cLinks.join(' ');
-        div.appendChild(_tdC);
+        var _tdG = document.createElement('div'); _tdG.className = 'td td-geo';
+      var _gTiles = '';
+      if(_rp.geos) for(var gi=0;gi<_rp.geos.length;gi++){
+        var g=_rp.geos[gi];
+        _gTiles += '<a class="yr-tile geo-tile" href="'+g.url+'" target="_blank" onclick="event.stopPropagation()">'+(g.year||'view')+'</a>';
+      }
+      _tdG.innerHTML = '<div class="yr-tiles">'+_gTiles+'</div>';
+      div.appendChild(_tdG);
+      var _tdC = document.createElement('div'); _tdC.className = 'td td-coastal';
+      var _cTiles = '';
+      if(_rp.coasts) for(var ci=0;ci<_rp.coasts.length;ci++){
+        var c=_rp.coasts[ci];
+        _cTiles += '<a class="yr-tile coastal-tile" href="'+c.url+'" target="_blank" onclick="event.stopPropagation()">'+(c.year||'view')+'</a>';
+      }
+      _tdC.innerHTML = '<div class="yr-tiles">'+_cTiles+'</div>';
+      div.appendChild(_tdC);
 
         div.addEventListener("click",()=>{
       selectedApn=r.apn; renderMarkers(); highlightRow(r.apn);
@@ -717,6 +749,31 @@ async function loadData(){
       reportLayer=L.layerGroup(geoM).addTo(map);
       window._coastalLayer=L.layerGroup(coaM).addTo(map);
       console.log('Report dots: '+geoM.length+' geo, '+coaM.length+' coastal');
+
+/* ── REPORT LAYER TOGGLE ── */
+var geoVisible = false, coastalVisible = false;
+function toggleGeo() {
+  geoVisible = !geoVisible;
+  var btn = document.getElementById('btn-geo');
+  if (geoVisible) {
+    if (reportLayer) reportLayer.addTo(map);
+    btn.classList.add('active');
+  } else {
+    if (reportLayer) map.removeLayer(reportLayer);
+    btn.classList.remove('active');
+  }
+}
+function toggleCoastal() {
+  coastalVisible = !coastalVisible;
+  var btn = document.getElementById('btn-coastal');
+  if (coastalVisible) {
+    if (window._coastalLayer) window._coastalLayer.addTo(map);
+    btn.classList.add('active');
+  } else {
+    if (window._coastalLayer) map.removeLayer(window._coastalLayer);
+    btn.classList.remove('active');
+  }
+}
     }
 
     async function init(){
