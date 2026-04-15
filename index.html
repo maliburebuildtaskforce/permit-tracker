@@ -90,6 +90,8 @@ html, body {
 .legend-title { font-size:9px; font-weight:600; letter-spacing:.8px; text-transform:uppercase; color:#999; margin-bottom:5px; }
 .leg-row { display:flex; align-items:center; gap:7px; margin:3px 0; font-size:11px; color:#333; }
 .leg-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+.rpt-icon { background: none !important; border: none !important; }
+.rpt-icon svg { display: block; }
 
 /* ── DIVIDER ── */
 #div { height:1px; background:#e5e5e5; flex-shrink:0; }
@@ -253,8 +255,8 @@ html, body {
       <div class="leg-row"><div class="leg-dot" style="background:#16a34a"></div>permitted</div>
       <div class="leg-row"><div class="leg-dot" style="background:#7c3aed"></div>under construction</div>
       <div class="legend-title" style="margin-top:8px">available reports</div>
-      <div class="leg-row"><div class="leg-dot" style="background:#8B4513"></div>geo report</div>
-      <div class="leg-row"><div class="leg-dot" style="background:#1a73e8"></div>coastal report</div>
+      <div class="leg-row"><svg width="12" height="12" viewBox="0 0 16 16" style="margin-right:6px;vertical-align:middle"><circle cx="8" cy="8" r="6.5" fill="none" stroke="#8B4513" stroke-width="1.5"/><line x1="8" y1="1" x2="8" y2="15" stroke="#8B4513" stroke-width="1.5"/></svg>geo report</div>
+      <div class="leg-row"><svg width="12" height="12" viewBox="0 0 16 16" style="margin-right:6px;vertical-align:middle"><circle cx="8" cy="8" r="6.5" fill="none" stroke="#1a73e8" stroke-width="1.5"/><line x1="1" y1="8" x2="15" y2="8" stroke="#1a73e8" stroke-width="1.5"/></svg>coastal report</div>
     </div>
   </div>
 
@@ -370,11 +372,17 @@ function renderMarkers(){
 function showPopup(latlng, p){
       var _a = p.apn.replace(/-/g,'');
       var _pu = permitByAPN[_a];
-      var _rr = reportsByAPN[_a];
+      var _rr = reportsByAPN[_a]||{geos:[],coasts:[]};
       var _lk = '';
       if(_pu) _lk += '<div class="pop-link"><a href="'+_pu+'" target="_blank">Building Permit</a></div>';
-      if(_rr && _rr.geo_url) _lk += '<div class="pop-link"><a href="'+_rr.geo_url+'" target="_blank">Geo Report</a></div>';
-      if(_rr && _rr.coastal_url) _lk += '<div class="pop-link"><a href="'+_rr.coastal_url+'" target="_blank">Coastal Engineering</a></div>';
+      if(_rr.geos) for(var i=0;i<_rr.geos.length;i++){
+        var g=_rr.geos[i];
+        _lk += '<div class="pop-link"><a href="'+g.url+'" target="_blank">Geo Report'+(g.year?' ('+g.year+')':'')+' </a></div>';
+      }
+      if(_rr.coasts) for(var i=0;i<_rr.coasts.length;i++){
+        var c=_rr.coasts[i];
+        _lk += '<div class="pop-link"><a href="'+c.url+'" target="_blank">Coastal Report'+(c.year?' ('+c.year+')':'')+' </a></div>';
+      }
       var _notes = p.notes ? '<div style="margin-top:7px;font-size:11px;color:#999;line-height:1.4">'+p.notes+'</div>' : '';
       L.popup({closeButton:true,maxWidth:280})
         .setLatLng(latlng)
@@ -441,15 +449,25 @@ function renderTable(){
         // ── permit / geo / coastal cells ──
         var apnStrip = (r.apn||'').replace(/\D/g,'');
         var _pU = permitByAPN[apnStrip]||'';
-        var _rp = reportsByAPN[apnStrip]||{};
+        var _rp = reportsByAPN[apnStrip]||{geos:[],coasts:[]};
         var _tdP = document.createElement('div'); _tdP.className='td td-permit';
-        _tdP.innerHTML = _pU ? '<a href="'+_pU+'" target="_blank" onclick="event.stopPropagation()">permit</a>' : '\u2014';
+        _tdP.innerHTML = _pU ? '<a href="'+_pU+'" target="_blank" onclick="event.stopPropagation()">permit</a>' : '';
         div.appendChild(_tdP);
         var _tdG = document.createElement('div'); _tdG.className='td td-geo';
-        _tdG.innerHTML = _rp.geo_url ? '<a href="'+_rp.geo_url+'" target="_blank" onclick="event.stopPropagation()">geo</a>' : '\u2014';
+        var _gLinks=[];
+        if(_rp.geos) for(var gi=0;gi<_rp.geos.length;gi++){
+          var g=_rp.geos[gi];
+          _gLinks.push('<a href="'+g.url+'" target="_blank" onclick="event.stopPropagation()">geo'+(g.year?' ('+g.year+')':'')+'</a>');
+        }
+        _tdG.innerHTML=_gLinks.join(' ');
         div.appendChild(_tdG);
         var _tdC = document.createElement('div'); _tdC.className='td td-coastal';
-        _tdC.innerHTML = _rp.coastal_url ? '<a href="'+_rp.coastal_url+'" target="_blank" onclick="event.stopPropagation()">coastal</a>' : '\u2014';
+        var _cLinks=[];
+        if(_rp.coasts) for(var ci=0;ci<_rp.coasts.length;ci++){
+          var c=_rp.coasts[ci];
+          _cLinks.push('<a href="'+c.url+'" target="_blank" onclick="event.stopPropagation()">coastal'+(c.year?' ('+c.year+')':'')+'</a>');
+        }
+        _tdC.innerHTML=_cLinks.join(' ');
         div.appendChild(_tdC);
 
         div.addEventListener("click",()=>{
@@ -606,11 +624,31 @@ async function loadData(){
         const rptLines = rptTxt.replace(/\r/g,'').trim().split('\n');
         if(rptLines.length>1){
           const h=csvLine(rptLines[0]);
-          const iA=h.indexOf('APN'), iG=h.indexOf('geo_url'), iC=h.indexOf('coastal_url');
-          for(let i=1;i<rptLines.length;i++){
-            const c=csvLine(rptLines[i]);
-            const apn=(c[iA]||'').replace(/\D/g,'');
-            if(apn) reportsByAPN[apn]={geo_url:c[iG]||'', coastal_url:c[iC]||''};
+          const iA=h.indexOf('APN');
+          var gi=[],ci=[];
+          for(var n=1;n<=3;n++){
+            var gu=h.indexOf('geo_url_'+n), gy=h.indexOf('geo_year_'+n);
+            if(gu!==-1) gi.push({u:gu,y:gy});
+            var cu=h.indexOf('coastal_url_'+n), cy=h.indexOf('coastal_year_'+n);
+            if(cu!==-1) ci.push({u:cu,y:cy});
+          }
+          // Fallback for old 2-column format
+          if(!gi.length){var ig=h.indexOf('geo_url');if(ig!==-1)gi=[{u:ig,y:-1}];}
+          if(!ci.length){var ic=h.indexOf('coastal_url');if(ic!==-1)ci=[{u:ic,y:-1}];}
+          for(var i=1;i<rptLines.length;i++){
+            var c=csvLine(rptLines[i]);
+            var apn=(c[iA]||'').replace(/\D/g,'');
+            if(!apn) continue;
+            var geos=[],coasts=[];
+            for(var j=0;j<gi.length;j++){
+              var url=c[gi[j].u]||'';
+              if(url) geos.push({url:url, year:gi[j].y>=0?(c[gi[j].y]||''):''});
+            }
+            for(var j=0;j<ci.length;j++){
+              var url=c[ci[j].u]||'';
+              if(url) coasts.push({url:url, year:ci[j].y>=0?(c[ci[j].y]||''):''});
+            }
+            if(geos.length||coasts.length) reportsByAPN[apn]={geos:geos, coasts:coasts};
           }
         }
         console.log('Permits:',Object.keys(permitByAPN).length,'Reports:',Object.keys(reportsByAPN).length);
@@ -625,46 +663,60 @@ async function loadData(){
       if(!window._geojson) return;
       if(reportLayer){ map.removeLayer(reportLayer); }
       if(window._coastalLayer){ map.removeLayer(window._coastalLayer); }
-      var OFF=0.00008;
       var geoM=[], coaM=[];
-      for(const apn in reportsByAPN){
-        const r=reportsByAPN[apn];
-        if(!r.geo_url && !r.coastal_url) continue;
-        const dashed=apn.length===10
-          ? apn.slice(0,4)+"-"+apn.slice(4,7)+"-"+apn.slice(7)
-          : apn;
-        const p=apnMap[dashed];
+      for(var apn in reportsByAPN){
+        var r=reportsByAPN[apn];
+        if(!r.geos.length && !r.coasts.length) continue;
+        var dashed=apn.length===10
+          ? apn.slice(0,4)+'-'+apn.slice(4,7)+'-'+apn.slice(7) : apn;
+        var p=apnMap[dashed];
         if(!p||!p.lat||!p.lng) continue;
-        var hasBoth=!!(r.geo_url && r.coastal_url);
-        if(r.geo_url){
-          var lat=p.lat-(hasBoth?OFF:0), lng=p.lng-(hasBoth?OFF:0);
-          var m=L.circleMarker([lat,lng],{
-            radius:4, color:"#8B4513", fillColor:"#8B4513",
-            fillOpacity:0.75, weight:1, opacity:0.9
+        if(r.geos.length){
+          var m=L.marker([p.lat,p.lng],{
+            icon:L.divIcon({
+              className:'rpt-icon geo-icon',
+              html:'<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="#8B4513" stroke-width="1.5"/><line x1="8" y1="1" x2="8" y2="15" stroke="#8B4513" stroke-width="1.5"/></svg>',
+              iconSize:[16,16],
+              iconAnchor:[8,8]
+            }),
+            zIndexOffset:-100
           });
-          var tip="<b style=\"font-size:11px\">"+(p.address||dashed)+"</b>";
-          tip+="<br><span style=\"color:#888;font-size:10px\">"+dashed+"</span>";
-          tip+="<br><a href=\""+r.geo_url+"\" target=\"_blank\">Geo Report</a>";          if(r.coastal_url) tip+='<br><a href="'+r.coastal_url+'" target="_blank">Coastal Engineering</a>';
-
-          m.bindPopup(tip,{maxWidth:250});
+          var tip='<b style="font-size:11px">'+(p.address||dashed)+'</b>';
+          tip+='<br><span style="color:#888;font-size:10px">'+dashed+'</span>';
+          for(var i=0;i<r.geos.length;i++){
+            tip+='<br><a href="'+r.geos[i].url+'" target="_blank">Geo Report'+(r.geos[i].year?' ('+r.geos[i].year+')':'')+'</a>';
+          }
+          for(var i=0;i<r.coasts.length;i++){
+            tip+='<br><a href="'+r.coasts[i].url+'" target="_blank">Coastal Report'+(r.coasts[i].year?' ('+r.coasts[i].year+')':'')+'</a>';
+          }
+          m.bindPopup(tip,{maxWidth:260});
           geoM.push(m);
         }
-        if(r.coastal_url){
-          var lat=p.lat+(hasBoth?OFF:0), lng=p.lng+(hasBoth?OFF:0);
-          var m=L.circleMarker([lat,lng],{
-            radius:4, color:"#1a73e8", fillColor:"#1a73e8",
-            fillOpacity:0.75, weight:1, opacity:0.9
+        if(r.coasts.length){
+          var m=L.marker([p.lat,p.lng],{
+            icon:L.divIcon({
+              className:'rpt-icon coastal-icon',
+              html:'<svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="#1a73e8" stroke-width="1.5"/><line x1="1" y1="8" x2="15" y2="8" stroke="#1a73e8" stroke-width="1.5"/></svg>',
+              iconSize:[16,16],
+              iconAnchor:[8,8]
+            }),
+            zIndexOffset:-200
           });
-          var tip="<b style=\"font-size:11px\">"+(p.address||dashed)+"</b>";
-          tip+="<br><span style=\"color:#888;font-size:10px\">"+dashed+"</span>";
-          tip+="<br><a href=\""+r.coastal_url+"\" target=\"_blank\">Coastal Engineering Report</a>";
-          m.bindPopup(tip,{maxWidth:250});
+          var tip='<b style="font-size:11px">'+(p.address||dashed)+'</b>';
+          tip+='<br><span style="color:#888;font-size:10px">'+dashed+'</span>';
+          for(var i=0;i<r.geos.length;i++){
+            tip+='<br><a href="'+r.geos[i].url+'" target="_blank">Geo Report'+(r.geos[i].year?' ('+r.geos[i].year+')':'')+'</a>';
+          }
+          for(var i=0;i<r.coasts.length;i++){
+            tip+='<br><a href="'+r.coasts[i].url+'" target="_blank">Coastal Report'+(r.coasts[i].year?' ('+r.coasts[i].year+')':'')+'</a>';
+          }
+          m.bindPopup(tip,{maxWidth:260});
           coaM.push(m);
         }
       }
       reportLayer=L.layerGroup(geoM).addTo(map);
       window._coastalLayer=L.layerGroup(coaM).addTo(map);
-      console.log("Report dots: "+geoM.length+" geo (brown), "+coaM.length+" coastal (blue)");
+      console.log('Report dots: '+geoM.length+' geo, '+coaM.length+' coastal');
     }
 
     async function init(){
