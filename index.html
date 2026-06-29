@@ -68,6 +68,21 @@ html, body {
 .fsel option { background:#fff; color:#111; }
 .fcaret { position:absolute; right:2px; top:50%; transform:translateY(-50%); pointer-events:none; color:#999; font-size:8px; }
 
+/* ── STATUS FILTER PILLS ── */
+#status-pills { display:flex; align-items:center; gap:6px; flex-shrink:0; }
+.pill {
+  display:inline-flex; align-items:center; gap:5px;
+  font-size:11px; font-weight:500; font-family:inherit;
+  color:#666; background:#fff; border:1px solid #e5e5e5;
+  border-radius:14px; padding:4px 10px; cursor:pointer;
+  white-space:nowrap; flex-shrink:0; letter-spacing:-.1px;
+  transition:all .15s;
+}
+.pill:hover { border-color:#bbb; color:#111; }
+.pill.active { background:#111; color:#fff; border-color:#111; }
+.pill-n { font-size:10px; font-weight:600; opacity:.6; font-variant-numeric:tabular-nums; }
+.pill.active .pill-n { opacity:.85; }
+
 /* ── MAIN ── */
 #main {
   position:fixed;
@@ -122,7 +137,7 @@ html, body {
 
 /* table head */
 #tbl-head {
-  display:grid; grid-template-columns:90px 1fr 80px 90px 70px 130px 100px;
+  display:grid; grid-template-columns:90px 1fr 160px 70px 120px 90px 105px;
   padding:0 20px; height:30px; align-items:center;
   border-bottom:1px solid #e5e5e5; flex-shrink:0;
   background:#fafafa;
@@ -135,7 +150,7 @@ html, body {
 #tbl-body::-webkit-scrollbar-thumb { background:#e5e5e5; border-radius:2px; }
 
 .row {
-  display:grid; grid-template-columns:90px 1fr 80px 90px 70px 130px 100px;
+  display:grid; grid-template-columns:90px 1fr 160px 70px 120px 90px 105px;
   padding:0 20px; min-height:38px; align-items:center;
   border-bottom:1px solid #f5f5f5;
   cursor:pointer; transition:background .1s;
@@ -205,7 +220,7 @@ html, body {
 }
 
     /* ── permit/geo/coastal columns + blue dots ── */
-    #tbl-head, .row { grid-template-columns: 90px 1fr 80px 90px 70px 130px 100px !important; }
+    #tbl-head, .row { grid-template-columns: 90px 1fr 160px 70px 120px 90px 105px !important; }
     .td-permit a { color:#1a73e8; text-decoration:none; font-size:11px; }
     .td-permit a:hover { text-decoration:underline; }
     .pop-link { display:block; margin-top:3px; }
@@ -269,10 +284,7 @@ html, body {
   </div>
   <div class="fsep"></div>
   <span class="flbl">status</span>
-  <div class="fwrap">
-    <select id="f-stat" class="fsel" onchange="applyFilters()"><option value="">all statuses</option></select>
-    <span class="fcaret">▼</span>
-  </div>
+  <div id="status-pills"></div>
   <div class="fsep"></div>
   <span class="rpt-toggle-label">show reports</span>
   <button class="rpt-btn geo-btn" id="btn-geo" onclick="toggleGeo()">geo</button>
@@ -284,8 +296,8 @@ html, body {
     <div id="map"></div>
     <div class="legend">
       <div class="legend-title">permit status</div>
-      <div class="leg-row"><div class="leg-dot" style="background:#16a34a"></div>permitted</div>
-      <div class="leg-row"><div class="leg-dot" style="background:#7c3aed"></div>under construction</div>
+      <div class="leg-row"><div class="leg-dot" style="background:#16a34a"></div>permit issued</div>
+      <div class="leg-row"><div class="leg-dot" style="background:#16a34a;box-shadow:0 0 0 2px #7c3aed"></div>under construction</div>
       <div class="leg-row"><div class="leg-dot" style="background:rgba(232,130,14,0.35);border:1px solid rgba(180,100,20,0.5);border-radius:2px"></div> destroyed (&gt;50% loss)</div>
       <div class="legend-title" style="margin-top:8px">available reports</div>
       <div class="leg-row"><svg width="12" height="12" viewBox="0 0 16 16" style="margin-right:6px;vertical-align:middle"><circle cx="8" cy="8" r="6.5" fill="none" stroke="#8B4513" stroke-width="1.5"/><line x1="8" y1="1" x2="8" y2="15" stroke="#8B4513" stroke-width="1.5"/></svg>geo report</div>
@@ -307,11 +319,11 @@ html, body {
     <div id="tbl-head">
       <div class="th" onclick="sortBy('apn',this)">apn <span id="s-apn"></span></div>
       <div class="th act" onclick="sortBy('address',this)">address <span id="s-address">↑</span></div>
-      <div class="th" onclick="sortBy('ambassador',this)">captain <span id="s-ambassador"></span></div>
       <div class="th" onclick="sortBy('status',this)">status <span id="s-status"></span></div>
       <div class="th" style="font-size:9px">permit</div>
       <div class="th" style="font-size:9px">geo</div>
       <div class="th" style="font-size:9px">coastal</div>
+      <div class="th" onclick="sortBy('ambassador',this)">captain <span id="s-ambassador"></span></div>
     </div>
 
     <div id="tbl-body"></div>
@@ -335,6 +347,41 @@ const S_CHIP = {
 function skey(s){ return (s||"").toLowerCase().trim(); }
 function scolor(s){ return S_COLOR[skey(s)]||"#9ca3af"; }
 function schip(s) { return S_CHIP[skey(s)]||"chip cx"; }
+
+/* ── STATUS FUNNEL STAGES (drives the filter pills) ──────────────────────
+   Each parcel's status string is normalized (lowercased, non-alphanumerics
+   stripped) and matched against the `match` lists below. This tolerates both
+   the legacy human labels ("permitted", "construction") and the city-sync
+   enum ("PermitIssued", "InPlanning", "PendingBSReview", "InBPC", ...).
+   If a pill's count looks wrong, add the exact normalized value to its list.
+   Quick check in console: [...new Set(allParcels.map(p=>p.status))]            */
+const STAGES = [
+  { key:"inplanning",        label:"In Planning",        match:["inplanning","planning"] },
+  { key:"pendingplancheck",  label:"Pending Plan Check",  match:["pendingbsreview","pendingbreview","pendingplancheck","pendingreview"] },
+  { key:"inplancheck",       label:"In Plan Check",       match:["inbpc","inplancheck","plancheck","bpc"] },
+  { key:"permitissued",      label:"Permit Issued",       match:["permitissued","permitted"] },
+  { key:"underconstruction", label:"Under Construction",  match:["underconstruction","construction"] },
+  { key:"cofo",              label:"CofO",                match:["cofo","certificateofoccupancy","bpcomplete","complete"] },
+];
+
+function normStatus(s){ return (s||"").toLowerCase().replace(/[^a-z0-9]/g,""); }
+
+// Returns the canonical stage key for a parcel's status, or null if unmatched.
+function stageOf(status){
+  const n=normStatus(status);
+  for(const st of STAGES){ if(st.match.includes(n)) return st.key; }
+  return null;
+}
+
+// Does a parcel's own stage satisfy the given pill? "Permit Issued" is a funnel
+// stage — under-construction parcels are permit-issued + one step, so they count.
+function stageMatches(pillKey, pStage){
+  if(pillKey===null) return true;                 // "All" pill
+  if(pillKey==="permitissued") return pStage==="permitissued"||pStage==="underconstruction";
+  return pStage===pillKey;
+}
+
+let activeStage=null;  // null = "All"
 
 const map = L.map("map",{center:[34.036,-118.735],zoom:12,preferCanvas:true});
 L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",{
@@ -373,7 +420,12 @@ function renderMarkers(){
     if(!p.lat||!p.lng) return;
     const sk=skey(p.status);
     if(!sk||sk==="unknown") return;
-    const c=scolor(p.status);
+    const st=stageOf(p.status);
+    const isUC=st==="underconstruction";
+    const isPI=st==="permitissued";
+    // Permit-issued and under-construction both render green; UC adds a purple
+    // ring (it's a permit-issued parcel one step further along).
+    const c=(isPI||isUC) ? "#16a34a" : scolor(p.status);
     const sel=p.apn===selectedApn;
     // Invisible large hit target underneath
     const hit=L.circleMarker([p.lat,p.lng],{
@@ -382,13 +434,21 @@ function renderMarkers(){
     });
     hit.on("click",()=>{selectedApn=p.apn;renderMarkers();showPopup([p.lat,p.lng],p);highlightRow(p.apn);});
     dotsGroup.addLayer(hit);
-    // Outer ring for selected dot
+    // Outer halo for selected dot (purple for UC so it reads as construction)
     if(sel){
       const ring=L.circleMarker([p.lat,p.lng],{
         radius:13, fillColor:"transparent",
-        color:c, weight:2.5, opacity:0.9, fillOpacity:0, interactive:false
+        color:isUC?"#7c3aed":c, weight:2.5, opacity:0.9, fillOpacity:0, interactive:false
       });
       dotsGroup.addLayer(ring);
+    }
+    // Permanent purple ring marking under-construction parcels
+    if(isUC){
+      const ucRing=L.circleMarker([p.lat,p.lng],{
+        radius:sel?9:7.5, fillColor:"transparent",
+        color:"#7c3aed", weight:2, opacity:0.95, fillOpacity:0, interactive:false
+      });
+      dotsGroup.addLayer(ucRing);
     }
     // Visible dot on top
     const m=L.circleMarker([p.lat,p.lng],{
@@ -476,7 +536,6 @@ function renderTable(){
     div.innerHTML=
       "<div class=\"td td-apn\">"+r.apn+"</div>"+
       "<div class=\"td td-addr\">"+r.address+"</div>"+
-      "<div class=\"td td-cap\">"+(r.ambassador||"—")+"</div>"+
       "<div class=\"td td-stat\"><span class=\""+schip(r.status)+"\">"+r.status+"</span></div>";
     
         // ── permit / geo / coastal cells ──
@@ -502,6 +561,11 @@ function renderTable(){
       }
       _tdC.innerHTML = '<div class="yr-tiles">'+_cTiles+'</div>';
       div.appendChild(_tdC);
+
+      // captain column moved to the far right
+      var _tdCap = document.createElement('div'); _tdCap.className = 'td td-cap';
+      _tdCap.textContent = r.ambassador || '\u2014';
+      div.appendChild(_tdCap);
 
         div.addEventListener("click",()=>{
       selectedApn=r.apn; renderMarkers(); highlightRow(r.apn);
@@ -529,23 +593,47 @@ function renderStats(){
 
 function populateFilters(){
   const caps=[...new Set(allParcels.map(p=>p.ambassador).filter(Boolean))].sort();
-  const stats=[...new Set(allParcels.map(p=>p.status||"unknown"))].sort();
   document.getElementById("f-cap").innerHTML="<option value=\"\">all captains</option>"+caps.map(c=>"<option>"+c+"</option>").join("");
-  document.getElementById("f-stat").innerHTML="<option value=\"\">all statuses</option>"+stats.map(s=>"<option>"+s+"</option>").join("");
 }
 
-function applyFilters(){
+// Parcels passing captain + search + base-visibility, ignoring the stage pill.
+function baseFiltered(){
   const q  =document.getElementById("search").value.toLowerCase().trim();
   const cap=document.getElementById("f-cap").value;
-  const sta=document.getElementById("f-stat").value;
-  filtered=allParcels.filter(p=>{
+  return allParcels.filter(p=>{
     const sk=skey(p.status);
     if(!sk||sk==="unknown"||sk==="") return false;
     if(cap&&p.ambassador!==cap) return false;
-    if(sta&&(p.status||"unknown")!==sta) return false;
     if(q&&![p.apn,p.address,p.ambassador,p.status,p.notes].some(v=>(v||"").toLowerCase().includes(q))) return false;
     return true;
   });
+}
+
+function renderPills(base){
+  const counts={};
+  base.forEach(p=>{ const st=stageOf(p.status); if(st) counts[st]=(counts[st]||0)+1; });
+  // "Permit Issued" count includes under-construction parcels.
+  const countFor=key=>{
+    if(key===null) return base.length;
+    if(key==="permitissued") return (counts.permitissued||0)+(counts.underconstruction||0);
+    return counts[key]||0;
+  };
+  const pills=[{key:null,label:"All"},...STAGES.map(s=>({key:s.key,label:s.label}))];
+  const el=document.getElementById("status-pills");
+  el.innerHTML=pills.map(p=>
+    "<button class=\"pill"+(activeStage===p.key?" active":"")+"\" data-k=\""+(p.key||"")+"\">"+
+      p.label+"<span class=\"pill-n\">"+countFor(p.key)+"</span></button>"
+  ).join("");
+  el.querySelectorAll(".pill").forEach(b=>b.addEventListener("click",()=>{
+    activeStage=b.dataset.k||null;
+    applyFilters();
+  }));
+}
+
+function applyFilters(){
+  const base=baseFiltered();
+  renderPills(base);
+  filtered=base.filter(p=>stageMatches(activeStage,stageOf(p.status)));
   renderTable(); renderStats(); renderMarkers();
 }
 
@@ -616,7 +704,7 @@ async function loadData(){
     populateFilters();
     applyFilters();
     // Fit map to permitted parcels only
-      var permitted = allParcels.filter(function(p){return p.status&&p.status.toLowerCase()==='permitted'&&p.lat&&p.lng;});
+      var permitted = allParcels.filter(function(p){return stageOf(p.status)==='permitissued'&&p.lat&&p.lng;});
       if(permitted.length){
         var pts=permitted.map(function(p){return [p.lat,p.lng];});
         var bounds=L.latLngBounds(pts);
