@@ -578,7 +578,7 @@ function parseCSV(text){
     return{
       apn:get("APN"),address:get("Address"),
       ambassador:get("Ambassador"),
-      status:get("Status")||"unknown",
+      status:get("live_status")||get("Status")||"unknown",
       lat:parseFloat(get("Lat"))||null,
       lng:parseFloat(get("Lng"))||null,
       notes:get("Notes"),
