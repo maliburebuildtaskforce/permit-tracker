@@ -139,7 +139,7 @@ html, body {
 
 /* table head */
 #tbl-head {
-  display:grid; grid-template-columns:80px 1fr 132px 96px 60px 104px 74px 88px;
+  display:grid; grid-template-columns:80px 1fr 264px 96px 60px 104px 74px 88px;
   padding:0 20px; height:30px; align-items:center;
   border-bottom:1px solid #e5e5e5; flex-shrink:0;
   background:#fafafa;
@@ -152,7 +152,7 @@ html, body {
 #tbl-body::-webkit-scrollbar-thumb { background:#e5e5e5; border-radius:2px; }
 
 .row {
-  display:grid; grid-template-columns:80px 1fr 132px 96px 60px 104px 74px 88px;
+  display:grid; grid-template-columns:80px 1fr 264px 96px 60px 104px 74px 88px;
   padding:0 20px; min-height:38px; align-items:center;
   border-bottom:1px solid #f5f5f5;
   cursor:pointer; transition:background .1s;
@@ -162,6 +162,7 @@ html, body {
 .row.hl     { background:#f5f5f5; }
 
 .td { font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding-right:8px; }
+.td-stat { overflow:visible; text-overflow:clip; }
 .td-geo, .td-coastal { overflow:visible; white-space:normal; }
 .td-apn  { color:#aaa; font-size:11px; font-variant-numeric:tabular-nums; font-family:Helvetica,Arial,monospace; }
 .td-addr { color:#111; font-weight:500; }
@@ -225,7 +226,7 @@ html, body {
 }
 
     /* ── permit/geo/coastal columns + blue dots ── */
-    #tbl-head, .row { grid-template-columns: 80px 1fr 132px 96px 60px 104px 74px 88px !important; }
+    #tbl-head, .row { grid-template-columns: 80px 1fr 264px 96px 60px 104px 74px 88px !important; }
     .td-permit a { color:#1a73e8; text-decoration:none; font-size:11px; }
     .td-permit a:hover { text-decoration:underline; }
     .pop-link { display:block; margin-top:3px; }
@@ -303,7 +304,7 @@ html, body {
 
 <div id="loading">
   <img src="https://maliburebuildnavigator.newarch.com/newArch_logo_circle.png" style="width:48px;height:48px;border-radius:50%;opacity:.9">
-  <div id="load-t">MALIBU permit tracker for the MRTF</div>
+  <div id="load-t">MALIBU permit tracker <span style="font-weight:400">for the MRTF</span></div>
   <div class="spin"></div>
   <div id="load-m">loading parcel data…</div>
 </div>
@@ -311,7 +312,7 @@ html, body {
 <div id="hdr">
   <div id="hdr-l">
     <img id="hdr-logo" src="https://maliburebuildnavigator.newarch.com/newArch_logo_circle.png" alt="MRTF">
-    <span id="hdr-title">MALIBU permit tracker for the MRTF</span>
+    <span id="hdr-title">MALIBU permit tracker <span style="font-weight:400">for the MRTF</span></span>
   </div>
   <div id="hdr-r">
     <span id="updated"></span>
@@ -362,8 +363,8 @@ html, body {
 
     <div id="tbl-head">
       <div class="th" onclick="sortBy('apn',this)">apn <span id="s-apn"></span></div>
-      <div class="th act" onclick="sortBy('address',this)">address <span id="s-address">↑</span></div>
-      <div class="th" onclick="sortBy('status',this)">status <span id="s-status"></span></div>
+      <div class="th" onclick="sortBy('address',this)">address <span id="s-address"></span></div>
+      <div class="th act" onclick="sortBy('status',this)">status <span id="s-status">↑</span></div>
       <div class="th">city case #</div>
       <div class="th" style="font-size:9px">permit</div>
       <div class="th" style="font-size:9px">geo</div>
@@ -400,13 +401,18 @@ function schip(s) { return S_CHIP[skey(s)]||"chip cx"; }
    enum ("PermitIssued", "InPlanning", "PendingBSReview", "InBPC", ...).
    If a pill's count looks wrong, add the exact normalized value to its list.
    Quick check in console: [...new Set(allParcels.map(p=>p.status))]            */
+// `match` = exact normalized strings (fast path). `has` = substring tokens used
+// as a forgiving fallback so trailing words (e.g. "Pending Building Safety
+// Review") still land in the right bucket. Order matters in the `has` pass:
+// the first stage whose token appears wins, so "pending" is checked before
+// "plancheck" — that keeps "Pending Plan Check" out of the In Plan Check bucket.
 const STAGES = [
-  { key:"inplanning",        label:"In Planning",        color:"#ea580c", chip:"ci", hollow:true,  match:["inplanning","planning"] },
-  { key:"pendingplancheck",  label:"Pending Plan Check",  color:"#dc2626", chip:"cn", hollow:true,  match:["pendingplancheck","pendingplanchecksubmission","pendingbsreview","pendingbreview","pendingreview","pendingbuildingsafety","pendingbs","pendingbsr"] },
-  { key:"inplancheck",       label:"In Plan Check",       color:"#1d4ed8", chip:"cd", hollow:true,  match:["inplancheck","inbpc","plancheck","bpc"] },
-  { key:"permitissued",      label:"Permit Issued",       color:"#16a34a", chip:"cp", hollow:false, match:["permitissued","permitted"] },
-  { key:"underconstruction", label:"Under Construction",  color:"#16a34a", chip:"cc", hollow:false, match:["underconstruction","construction"] },
-  { key:"cofo",              label:"CofO",                color:"#0d9488", chip:"cx", hollow:false, match:["cofo","certificateofoccupancy","bpcomplete","complete"] },
+  { key:"inplanning",        label:"In Planning",        color:"#ea580c", chip:"ci", hollow:true,  match:["inplanning","planning"], has:["planning"] },
+  { key:"pendingplancheck",  label:"Pending Plan Check",  color:"#dc2626", chip:"cn", hollow:true,  match:["pendingplancheck","pendingplanchecksubmission","pendingbsreview","pendingbreview","pendingreview","pendingbuildingsafety","pendingbs","pendingbsr"], has:["pending"] },
+  { key:"inplancheck",       label:"In Plan Check",       color:"#1d4ed8", chip:"cd", hollow:true,  match:["inplancheck","inbpc","plancheck","bpc"], has:["plancheck","bpc"] },
+  { key:"permitissued",      label:"Permit Issued",       color:"#16a34a", chip:"cp", hollow:false, match:["permitissued","permitted"], has:["permitissued","permitted"] },
+  { key:"underconstruction", label:"Under Construction",  color:"#16a34a", chip:"cc", hollow:false, match:["underconstruction","construction"], has:["construction"] },
+  { key:"cofo",              label:"CofO",                color:"#0d9488", chip:"cx", hollow:false, match:["cofo","certificateofoccupancy","bpcomplete","complete"], has:["cofo","occupancy","bpcomplete"] },
 ];
 
 // Look up the stage config object for a parcel's status (or null).
@@ -423,7 +429,9 @@ function normStatus(s){ return (s||"").toLowerCase().replace(/[^a-z0-9]/g,""); }
 // Returns the canonical stage key for a parcel's status, or null if unmatched.
 function stageOf(status){
   const n=normStatus(status);
-  for(const st of STAGES){ if(st.match.includes(n)) return st.key; }
+  if(!n) return null;
+  for(const st of STAGES){ if(st.match.includes(n)) return st.key; }            // exact
+  for(const st of STAGES){ if(st.has && st.has.some(h=>n.includes(h))) return st.key; } // substring
   return null;
 }
 
@@ -443,7 +451,11 @@ L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",{
 }).addTo(map);
 
 let allParcels=[],filtered=[],markers={},selectedApn=null;
-let sortK="address",sortD=1;
+let sortK="status",sortD=1;
+// Default list ordering when sorted by status: Under Construction first, then
+// down the funnel. Anything unmatched sorts last.
+const STATUS_ORDER=["underconstruction","permitissued","cofo","inplancheck","pendingplancheck","inplanning"];
+function statusRank(s){ const i=STATUS_ORDER.indexOf(stageOf(s)); return i<0?99:i; }
 let apnMap={},parcelLayer=null,dotsGroup=null;
 
 const PROXY_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6CaSItN1ctobH8NfdYzIlha6xd_LwNR6OpSYdS7WvWcJ1wq0qq0HdUH5rMfmHm8eKpbp2Ic6oViK3/pub?gid=1279516229&single=true&output=csv";
@@ -581,7 +593,14 @@ function sortBy(key,el){
 }
 
 function renderTable(){
-  const sorted=[...filtered].sort((a,b)=>(a[sortK]||"").localeCompare(b[sortK]||"")*sortD);
+  const sorted=[...filtered].sort((a,b)=>{
+    if(sortK==="status"){
+      const d=statusRank(a.status)-statusRank(b.status);
+      if(d) return d*sortD;
+      return (a.address||"").localeCompare(b.address||""); // stable tiebreak
+    }
+    return (a[sortK]||"").localeCompare(b[sortK]||"")*sortD;
+  });
   const body=document.getElementById("tbl-body");
   if(!sorted.length){
     body.innerHTML="<div style=\"padding:24px;text-align:center;color:#bbb;font-size:12px\">no parcels match your filters.</div>";
