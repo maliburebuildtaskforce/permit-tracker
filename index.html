@@ -172,12 +172,13 @@ html, body {
 /* status chips — line style, no fill */
 .chip { display:inline-block; padding:2px 7px; border-radius:3px; font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.4px; white-space:nowrap; }
 .cp { border:1px solid #16a34a; color:#16a34a; }
-.ci { border:1px solid #ea580c; color:#ea580c; }
+.ci { border:1px solid #eab308; color:#a16207; }
 .cc { border:1px solid #7c3aed; color:#7c3aed; }
 .ca { border:1px solid #b45309; color:#b45309; }
 .cd { border:1px solid #1d4ed8; color:#1d4ed8; }
 .cn { border:1px solid #dc2626; color:#dc2626; }
 .cx { border:1px solid #9ca3af; color:#9ca3af; }
+.ck { border:1px solid #111; color:#111; }
 
 /* Leaflet popup */
 .leaflet-popup-content-wrapper {
@@ -340,11 +341,12 @@ html, body {
     <div id="map"></div>
     <div class="legend">
       <div class="legend-title">permit status</div>
-      <div class="leg-row"><div class="leg-dot" style="background:#fff;border:2px solid #ea580c"></div>in planning</div>
+      <div class="leg-row"><div class="leg-dot" style="background:#fff;border:2px solid #eab308"></div>in planning</div>
       <div class="leg-row"><div class="leg-dot" style="background:#fff;border:2px solid #dc2626"></div>pending plan check</div>
       <div class="leg-row"><div class="leg-dot" style="background:#fff;border:2px solid #1d4ed8"></div>in plan check</div>
       <div class="leg-row"><div class="leg-dot" style="background:#16a34a"></div>permit issued</div>
       <div class="leg-row"><div class="leg-dot" style="background:#16a34a;box-shadow:0 0 0 2px #7c3aed"></div>under construction</div>
+      <div class="leg-row"><div class="leg-dot" style="background:#111"></div>complete</div>
       <div class="leg-row"><div class="leg-dot" style="background:rgba(232,130,14,0.35);border:1px solid rgba(180,100,20,0.5);border-radius:2px"></div> destroyed (&gt;50% loss)</div>
       <div class="legend-title" style="margin-top:8px">available reports</div>
       <div class="leg-row"><svg width="12" height="12" viewBox="0 0 16 16" style="margin-right:6px;vertical-align:middle"><circle cx="8" cy="8" r="6.5" fill="none" stroke="#8B4513" stroke-width="1.5"/><line x1="8" y1="1" x2="8" y2="15" stroke="#8B4513" stroke-width="1.5"/></svg>geo report</div>
@@ -407,12 +409,12 @@ function schip(s) { return S_CHIP[skey(s)]||"chip cx"; }
 // the first stage whose token appears wins, so "pending" is checked before
 // "plancheck" — that keeps "Pending Plan Check" out of the In Plan Check bucket.
 const STAGES = [
-  { key:"inplanning",        label:"In Planning",        color:"#ea580c", chip:"ci", hollow:true,  match:["inplanning","planning"], has:["planning"] },
+  { key:"inplanning",        label:"In Planning",        color:"#eab308", chip:"ci", hollow:true,  match:["inplanning","planning"], has:["planning"], ink:"#1a1a1a" },
   { key:"pendingplancheck",  label:"Pending Plan Check",  color:"#dc2626", chip:"cn", hollow:true,  match:["pendingplancheck","pendingplanchecksubmission","pendingbsreview","pendingbreview","pendingreview","pendingbuildingsafety","pendingbs","pendingbsr"], has:["pending"] },
   { key:"inplancheck",       label:"In Plan Check",       color:"#1d4ed8", chip:"cd", hollow:true,  match:["inplancheck","inbpc","plancheck","bpc"], has:["plancheck","bpc"] },
   { key:"permitissued",      label:"Permit Issued",       color:"#16a34a", chip:"cp", hollow:false, match:["permitissued","permitted"], has:["permitissued","permitted"] },
-  { key:"underconstruction", label:"Under Construction",  color:"#16a34a", chip:"cc", hollow:false, match:["underconstruction","construction"], has:["construction"] },
-  { key:"cofo",              label:"CofO",                color:"#0d9488", chip:"cx", hollow:false, match:["cofo","certificateofoccupancy","bpcomplete","complete"], has:["cofo","occupancy","bpcomplete"] },
+  { key:"underconstruction", label:"Under Construction",  color:"#7c3aed", chip:"cc", hollow:false, match:["underconstruction","construction"], has:["construction"] },
+  { key:"cofo",              label:"Complete",            color:"#111111", chip:"ck", hollow:false, match:["cofo","certificateofoccupancy","bpcomplete","complete"], has:["cofo","occupancy","bpcomplete"] },
 ];
 
 // Look up the stage config object for a parcel's status (or null).
@@ -698,12 +700,12 @@ function renderPills(base){
     if(key==="permitissued") return (counts.permitissued||0)+(counts.underconstruction||0);
     return counts[key]||0;
   };
-  const pills=[{key:null,label:"All",color:null},...STAGES.map(s=>({key:s.key,label:s.label,color:s.color}))];
+  const pills=[{key:null,label:"All",color:null,ink:null},...STAGES.map(s=>({key:s.key,label:s.label,color:s.color,ink:s.ink}))];
   const el=document.getElementById("status-pills");
   el.innerHTML=pills.map(p=>{
     const active=activeStage===p.key;
     const dot=p.color?"<span class=\"pill-dot\" style=\"background:"+p.color+"\"></span>":"";
-    const style=(active&&p.color)?" style=\"background:"+p.color+";border-color:"+p.color+";color:#fff\"":"";
+    const style=(active&&p.color)?" style=\"background:"+p.color+";border-color:"+p.color+";color:"+(p.ink||"#fff")+"\"":"";
     return "<button class=\"pill"+(active?" active":"")+"\" data-k=\""+(p.key||"")+"\""+style+">"+
       dot+p.label+"<span class=\"pill-n\">"+countFor(p.key)+"</span></button>";
   }).join("");
