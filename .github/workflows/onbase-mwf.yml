@@ -1,0 +1,67 @@
+name: OnBase MWF refresh
+
+# Runs the OnBase scrapers Mon/Wed/Fri, then commits the two fresh CSVs
+# (permit links + geo/coastal report links) back into the repo. The Google
+# Sheet pulls those CSVs in (via IMPORTDATA), so the tracker updates with no
+# manual step. No login/credentials needed — the city portals are public HTTP.
+
+on:
+  schedule:
+    # 14:00 UTC = ~7 AM Pacific (PDT). GitHub cron is always UTC and does not
+    # shift for daylight saving, so this is ~6 AM during PST — both are well
+    # before the noon city-status sync, which is fine.
+    - cron: '0 14 * * 1,3,5'
+  workflow_dispatch: {}   # adds a "Run workflow" button for manual test runs
+
+permissions:
+  contents: write          # needed to commit the refreshed CSVs
+
+concurrency:
+  group: onbase-refresh
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scraper      # all scripts + caches live here
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Scrape building permits
+        run: python malibu_palisades_permits.py
+
+      - name: Collapse to one permit per APN
+        run: python priority_filter.py
+
+      - name: Scrape geo & coastal reports
+        run: python fetch_geo_coastal_v3.py
+
+      - name: Stage outputs
+        run: |
+          mkdir -p ../data
+          cp palisades_permits_priority.csv ../data/
+          cp palisades_permits_reports.csv  ../data/
+          echo "Permit rows:"; wc -l < ../data/palisades_permits_priority.csv
+          echo "Report rows:"; wc -l < ../data/palisades_permits_reports.csv
+
+      - name: Commit refreshed CSVs
+        working-directory: ${{ github.workspace }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/palisades_permits_priority.csv data/palisades_permits_reports.csv
+          if git diff --staged --quiet; then
+            echo "No changes this run."
+          else
+            git commit -m "OnBase MWF refresh $(date -u +%Y-%m-%d)"
+            git push
+          fi
