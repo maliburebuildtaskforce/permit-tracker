@@ -438,10 +438,11 @@ function stageOf(status){
 }
 
 // Does a parcel's own stage satisfy the given pill? "Permit Issued" is a funnel
-// stage — under-construction parcels are permit-issued + one step, so they count.
+// stage — under-construction and complete parcels already had a permit issued,
+// so both count toward it.
 function stageMatches(pillKey, pStage){
   if(pillKey===null) return true;                 // "All" pill
-  if(pillKey==="permitissued") return pStage==="permitissued"||pStage==="underconstruction";
+  if(pillKey==="permitissued") return pStage==="permitissued"||pStage==="underconstruction"||pStage==="cofo";
   return pStage===pillKey;
 }
 
@@ -694,10 +695,10 @@ function baseFiltered(){
 function renderPills(base){
   const counts={};
   base.forEach(p=>{ const st=stageOf(p.status); if(st) counts[st]=(counts[st]||0)+1; });
-  // "Permit Issued" count includes under-construction parcels.
+  // "Permit Issued" count includes under-construction and complete parcels.
   const countFor=key=>{
     if(key===null) return base.length;
-    if(key==="permitissued") return (counts.permitissued||0)+(counts.underconstruction||0);
+    if(key==="permitissued") return (counts.permitissued||0)+(counts.underconstruction||0)+(counts.cofo||0);
     return counts[key]||0;
   };
   const pills=[{key:null,label:"All",color:null,ink:null},...STAGES.map(s=>({key:s.key,label:s.label,color:s.color,ink:s.ink}))];
